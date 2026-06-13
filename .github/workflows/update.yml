@@ -1,0 +1,26 @@
+name: 每日牛熊數據更新
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'   # UTC 10:00 = 香港 19:30
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安裝依賴
+        run: pip install requests firebase-admin beautifulsoup4
+
+      - name: 執行爬蟲
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: python cloud_crawler.py
