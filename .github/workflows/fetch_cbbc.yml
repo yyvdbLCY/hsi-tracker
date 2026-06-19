@@ -1,0 +1,30 @@
+name: 法兴牛熊街货每日更新
+
+on:
+  schedule:
+    # 香港时间 19:30 (UTC 10:30) 周一至周五
+    - cron: '30 11 * * 1-5'
+  workflow_dispatch:   # 允许手动触发
+
+jobs:
+  run-crawler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 安装依赖
+        run: pip install requests firebase-admin
+
+      - name: 写入 Firebase 密钥
+        run: echo '${{ secrets.FIREBASE_KEY }}' > serviceAccountKey.json
+
+      - name: 执行爬虫
+        run: python cbbc_crawler.py
