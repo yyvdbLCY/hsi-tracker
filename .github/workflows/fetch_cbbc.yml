@@ -1,9 +1,6 @@
 name: 法兴牛熊街货每日更新
 
 on:
-  schedule:
-    # 香港时间 19:30 (UTC 10:30) 周一至周五
-    - cron: '30 11 * * 1-5'
   workflow_dispatch:   # 允许手动触发
 
 jobs:
