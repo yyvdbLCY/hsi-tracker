@@ -16,8 +16,9 @@ CORRECTION_FACTOR = 1.0                 # 港交所数据已为全市场官方�
 # ========================================
 
 # ---------- Firebase 初始化 ----------
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
+if not firebase_admin._apps:
+    cred = credentials.Certificate("serviceAccountKey.json")
+    firebase_admin.initialize_app(cred)
 db = firestore.client()
 doc_ref = db.collection("market").document("hsi_data")
 
