@@ -34,4 +34,4 @@ jobs:
 
       - name: 执行补单爬虫 (指定日期)
         if: github.event.inputs.backfill_date != ''
-        run: python fix_data.py ${{ github.event.inputs.backfill_date }}
+        run: python fix_data.py
