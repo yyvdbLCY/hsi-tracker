@@ -11,19 +11,19 @@ doc_ref = db.collection("market").document("hsi_data")
 correct_data = [
     {
         "date": "2026-06-29",
-        "hsi": 22881.02,          # 你用返法興顯示嗰個恒指，或者用 Yahoo 查返當日收市
+        "hsi": 23026.68,          # 你用返法興顯示嗰個恒指，或者用 Yahoo 查返當日收市
         "bull": 51.0,
         "bull_amount": 6612,
         "bear_amount": 6341,
-        "bull_500_amount": 0      # 你稍後可以補返正確嘅500點內數字
+        "bull_500_amount": 1160      # 你稍後可以補返正確嘅500點內數字
     },
     {
         "date": "2026-06-30",
-        "hsi": 23026.68,          # 根據你 log 法興俾嘅現價
+        "hsi": 22881.02,          # 根據你 log 法興俾嘅現價
         "bull": 53.3,
         "bull_amount": 7181,
         "bear_amount": 6297,
-        "bull_500_amount": 0
+        "bull_500_amount": 2606.5
     }
 ]
 
