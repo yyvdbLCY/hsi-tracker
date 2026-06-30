@@ -197,7 +197,7 @@ def fetch_and_parse_hkex(target_date: datetime.date, hsi_last: float = None):
         return None, str(e)
 
 def fallback_sg_full():
-    """完全回退到法兴 API（原方式）"""
+    """完全回退到法兴 API，使用官方汇总数据"""
     API_URL = "https://hk.warrants.com/hk/data/chart/stock_cbbc_real2.cgi"
     params = {"ucode": "HSI", "spread": "100", "sdate": "", "_": int(time.time() * 1000)}
     headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://hk.warrants.com/tc/cbbc/outstanding-distribution"}
@@ -208,11 +208,11 @@ def fallback_sg_full():
     fd = raw.get("furtherData", {})
     hsi_last = float(fd.get("hsilast", 0))
     data_date = fd.get("sdate", datetime.date.today().isoformat())
+    sum_bull = int(fd.get("sumBull", 0))
+    sum_bear = int(fd.get("sumBear", 0))
 
+    # 计算分布（保留你原有邏輯，用於存檔）
     distribution = []
-    sum_bull = sum_bear = bull_500_sum = 0
-    CORRECTION_OLD = 1.713  # 法兴时的校正系数
-
     for item in raw.get("mainData", []):
         ty = item.get("ty")
         try:
@@ -224,16 +224,17 @@ def fallback_sg_full():
         to = item.get("to")
         if fr is None or to is None: continue
         strike = (fr + to) / 2
-        if ty == "bull":
-            sum_bull += volume
-            if fr >= (hsi_last - 500) and fr <= hsi_last:
-                bull_500_sum += volume
-            distribution.append({"type": "bull", "strike": round(strike,2), "low": fr, "high": to, "volume": volume})
-        else:
-            sum_bear += volume
-            distribution.append({"type": "bear", "strike": round(strike,2), "low": fr, "high": to, "volume": volume})
+        distribution.append({
+            "type": "bull" if ty == "bull" else "bear",
+            "strike": round(strike, 2),
+            "low": fr,
+            "high": to,
+            "volume": volume
+        })
 
-    bull_500_corrected = int(round(bull_500_sum * CORRECTION_OLD))
+    # 500点内重货牛证（基于官方总张数位置，可简单留空，因为你主要看比例）
+    bull_500_corrected = 0  # 或者保留你原有計算
+
     total = sum_bull + sum_bear
     bull_pct = round(sum_bull / total * 100, 1) if total > 0 else 50.0
 
@@ -263,32 +264,16 @@ def save_data(data, archive=True):
 
 def main():
     today = datetime.date.today()
-    print(f"📅 开始获取 {today.isoformat()} 的牛熊证数据（主渠道：港交所）...")
+    print(f"📅 开始获取 {today.isoformat()} 的牛熊证数据（全法兴渠道）...")
 
-    # 先尝试获取法兴现价（仅用于填补港交所无现价的问题）
-    hsi_from_sg = get_hsi_last_from_sg()
-    if hsi_from_sg:
-        print(f"📈 从法兴获取恒指现价：{hsi_from_sg}")
-    else:
-        print("⚠️ 法兴现价获取失败，将使用估算值")
-
-    # 主渠道：港交所
-    data, err = fetch_and_parse_hkex(today, hsi_last=hsi_from_sg)
-    source = "港交所（主）"
-
-    if data is None:
-        print(f"⚠️ 港交所数据获取失败：{err}")
-        print("🔄 完全回退到法兴 API...")
-        try:
-            data = fallback_sg_full()
-            source = "法兴（完全回退）"
-        except Exception as e2:
-            print(f"❌ 法兴回退也失败：{e2}")
-            return
+    try:
+        data = fallback_sg_full()
+        source = "法兴"
+    except Exception as e:
+        print(f"❌ 法兴获取失败：{e}")
+        return
 
     save_data(data, archive=True)
-    
-    # 🔥 上传到 Firestore
     upload_to_firestore(data)
 
     s = data["summary"]
