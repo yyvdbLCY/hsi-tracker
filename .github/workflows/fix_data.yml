@@ -1,0 +1,27 @@
+name: 手動修正 Firestore 數據
+
+on:
+  workflow_dispatch:   # 只能手動觸發，唔會定時執行
+
+jobs:
+  fix-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: 檢出倉庫
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 安裝依賴
+        run: pip install firebase-admin
+
+      - name: 寫入 Firebase 金鑰
+        run: echo '${{ secrets.FIREBASE_KEY }}' > serviceAccountKey.json
+
+      - name: 執行資料修正腳本
+        run: python fix_data.py
