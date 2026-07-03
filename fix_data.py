@@ -9,6 +9,14 @@ doc_ref = db.collection("market").document("hsi_data")
 
 # 正確數據（來自法興官網）
 correct_data = [
+       {
+        "date": "2026-07-02",
+        "hsi": 23026.68,          # 你用返法興顯示嗰個恒指，或者用 Yahoo 查返當日收市
+        "bull": 51.2,
+        "bull_amount": 7120,
+        "bear_amount": 6778,
+        "bull_500_amount": 1750      # 你稍後可以補返正確嘅500點內數字
+    },
     {
         "date": "2026-06-29",
         "hsi": 23026.68,          # 你用返法興顯示嗰個恒指，或者用 Yahoo 查返當日收市
