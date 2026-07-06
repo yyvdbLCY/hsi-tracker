@@ -28,20 +28,9 @@
         table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 6px; overflow: hidden; font-size: 13px; }
         th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #4a5568; color: #e2e8f0; }
         th { background-color: #4a5568; color: white; font-size: 13px; font-weight: 600; }
-        input[type="text"], input[type="number"] {
-            width: 85%; padding: 5px; border: 1px solid #4a5568; border-radius: 4px;
-            text-align: center; font-size: 13px; background: #1e293b; color: #e2e8f0;
-        }
-        input:focus { border-color: #90cdf4; outline: none; }
         .btn { padding: 6px 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; transition: background 0.2s; }
-        .btn-add { background-color: #38a169; color: white; width: 100%; margin-bottom: 12px; padding: 10px; }
-        .btn-add:hover { background-color: #2f855a; }
         .btn-refresh { background-color: #4a5568; color: white; font-size: 12px; padding: 4px 8px; }
-        .btn-force { background-color: #dd6b20; color: white; font-size: 12px; padding: 4px 8px; margin-left: 4px; }
-        .btn-rebuild { background-color: #e53e3e; color: white; font-size: 12px; padding: 4px 8px; margin-left: 4px; }
-        .btn-delete { background-color: #e53e3e; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
-        .btn-delete:hover { background-color: #c53030; }
-        .status-msg { background: #1a365d; color: #bee3f8; padding: 8px; border-radius: 6px; margin-top: 10px; text-align: center; font-size: 13px; display: none; font-weight: bold; }
+        .btn-refresh:hover { background-color: #2d3748; }
         .badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; color: white; margin-top: 3px; }
         .badge-overheat { background-color: #e53e3e; }
         .badge-killbull { background-color: #d69e2e; color: #1a202c; }
@@ -49,19 +38,18 @@
         .badge-killbear { background-color: #805ad5; }
         .loading-mask { position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; z-index:10; font-size: 15px; font-weight:bold; color:#90cdf4; display:none; border-radius: 12px; }
         .date-cell-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .slider-container { display: flex; align-items: center; justify-content: center; margin: 10px 0 20px; gap: 10px; color: #a0aec0; }
+        .slider-container { display: flex; align-items: center; justify-content: center; margin: 10px 0 20px; gap: 10px; color: #a0aec0; font-size: 13px; }
         .slider-container input[type=range] { width: 200px; accent-color: #90cdf4; }
         @media (max-width: 600px) {
             body { padding: 8px; } h1 { font-size: 18px; } .chart-container { height: 300px; }
             .col-bear { display: none; } th, td { padding: 6px 4px; font-size: 12px; }
-            input[type="text"], input[type="number"] { padding: 4px 2px; font-size: 12px; }
         }
         @media (min-width: 601px) {
             .container { padding: 30px; } h1 { font-size: 26px; } .subtitle { font-size: 14px; }
             .chart-container { height: 520px; } .data-panel { padding: 20px; }
-            .panel-title { font-size: 18px; margin-bottom: 15px; } .btn-add { width: auto; margin-bottom: 15px; padding: 8px 16px; }
-            .btn-refresh { font-size: 14px; padding: 8px 16px; } th, td { padding: 10px 12px; font-size: 14px; }
-            input[type="text"], input[type="number"] { font-size: 14px; width: 90%; } .badge { font-size: 11px; margin-top: 0; margin-left: 5px; }
+            .panel-title { font-size: 18px; margin-bottom: 15px; } .btn-refresh { font-size: 14px; padding: 8px 16px; }
+            th, td { padding: 10px 12px; font-size: 14px; }
+            .badge { font-size: 11px; margin-top: 0; margin-left: 5px; }
             .date-cell-container { flex-direction: row; }
         }
     </style>
@@ -74,33 +62,27 @@
     <div class="chart-container"><canvas id="interactiveChart"></canvas></div>
     <div class="slider-container">
         <span>📅 顯示最近</span>
-        <input type="range" id="dayRangeSlider" min="7" max="999" value="999" oninput="window.updateDayRange(this.value)">
-        <span id="dayRangeLabel">全部</span>
+        <input type="range" id="dayRangeSlider" min="7" max="999" value="30" oninput="window.updateDayRange(this.value)">
+        <span id="dayRangeLabel">30</span>
         <span>天</span>
     </div>
     <div class="data-panel">
         <div class="panel-title">
-            <span>🛠️ 歷史數據管理面板</span>
-            <div>
-                <button class="btn btn-refresh" id="refreshBtn">🔄 刷新數據</button>
-                <button class="btn btn-rebuild" id="rebuildDbBtn">🚨重置雲端歷史</button>
-            </div>
+            <span>📋 歷史數據</span>
+            <button class="btn btn-refresh" id="refreshBtn">🔄 刷新數據</button>
         </div>
-        <button class="btn btn-add" id="addRowBtn">＋ 手動新增一日數據</button>
         <table id="dataTable">
             <thead>
                 <tr>
-                    <th style="width: 32%;">日期</th>
-                    <th style="width: 28%;">恒指收市價</th>
+                    <th style="width: 35%;">日期</th>
+                    <th style="width: 30%;">恒指收市價</th>
                     <th style="width: 25%;">牛證比例</th>
-                    <th style="width: 15%;" class="col-bear">熊證比例</th>
-                    <th style="width: 15%;">操作</th>
+                    <th style="width: 10%;" class="col-bear">熊證比例</th>
                 </tr>
             </thead>
             <tbody id="tableBody"></tbody>
         </table>
         <button id="toggleTableBtn" class="btn" style="width: 100%; margin-top: 12px; background-color: #4a5568; color: white; padding: 8px;">🔽 展開全部歷史數據</button>
-        <div id="statusMsg" class="status-msg">已自動儲存</div>
     </div>
 </div>
 
@@ -108,7 +90,7 @@
     window.marketData = [];
     window.chartInstance = null;
     window.isTableExpanded = false;
-    window.displayDays = 999;
+    window.displayDays = 30;
 
     const firebaseConfig = {
         apiKey: "AIzaSyAPuQf_rtonxZ6DxGOEuk_WLLLC6hgDdfI",
@@ -164,8 +146,8 @@
 
     const getPointEmoji = (context) => {
         const localIndex = context.dataIndex;
-        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
-            ? window.chartInstance.globalIndices[localIndex] 
+        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices)
+            ? window.chartInstance.globalIndices[localIndex]
             : localIndex;
         const status = window.getMarketStatus(globalIndex);
         if (status.text.includes("過熱")) return "🔥";
@@ -186,8 +168,8 @@
 
     const isGannDay = (context) => {
         const localIndex = context.dataIndex;
-        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
-            ? window.chartInstance.globalIndices[localIndex] 
+        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices)
+            ? window.chartInstance.globalIndices[localIndex]
             : localIndex;
         if (!window.marketData || !window.marketData[globalIndex]) return "";
         return isGannWindow(window.marketData[globalIndex].date) ? "🌌" : "";
@@ -251,32 +233,6 @@
         }
     }
 
-    window.syncToCloud = async function() {
-        try {
-            await docRef.set({ list: window.marketData });
-            showStatusMessage("✅ 雲端同步成功！");
-        } catch (e) {
-            showStatusMessage("⚠️ 雲端同步失敗");
-        }
-    }
-
-    window.rebuildDatabase = async function() {
-        if (confirm("🔮 確定要將程式碼中最新的完整歷史數據覆蓋重置到 Firebase 雲端嗎？")) {
-            showLoading(true);
-            try {
-                window.marketData = [...defaultData];
-                await docRef.set({ list: window.marketData });
-                renderTable();
-                initChart();
-                showStatusMessage("⚡ 雲端數據庫修復重置完畢！");
-            } catch (e) {
-                alert("重置失敗: " + e.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-    }
-
     window.toggleTableDisplay = function() {
         window.isTableExpanded = !window.isTableExpanded;
         const btn = document.getElementById('toggleTableBtn');
@@ -300,71 +256,20 @@
         window.marketData.forEach((item, index) => {
             if (!window.isTableExpanded && index < totalRows - displayLimit) return;
             const row = document.createElement('tr');
+            const status = window.getMarketStatus(index);
             row.innerHTML = `
                 <td>
                     <div class="date-cell-container">
-                        <input type="text" value="${escapeHtml(item.date)}" id="date-${index}" class="auto-save-input">
-                        <span id="badge-container-${index}">${window.getMarketStatus(index).badgeHTML}</span>
+                        <span>${escapeHtml(item.date)}</span>
+                        <span id="badge-container-${index}">${status.badgeHTML}</span>
                     </div>
                 </td>
-                <td><input type="number" value="${item.hsi}" id="hsi-${index}" step="0.01" class="auto-save-input"></td>
-                <td><input type="number" value="${item.bull}" id="bull-${index}" min="0" max="100" step="0.1" class="auto-save-input"></td>
-                <td id="bear-${index}" class="col-bear">${(100 - item.bull).toFixed(1)} %</td>
-                <td><button class="btn btn-delete" onclick="window.deleteRowHandler(${index})">刪除</button></td>
+                <td>${(item.hsi || 0).toLocaleString()}</td>
+                <td>${(item.bull || 0).toFixed(1)} %</td>
+                <td class="col-bear">${(100 - (item.bull || 0)).toFixed(1)} %</td>
             `;
             tbody.appendChild(row);
         });
-        document.querySelectorAll('.auto-save-input').forEach(input => {
-            input.addEventListener('input', function(e) {
-                const idParts = e.target.id.split('-');
-                const index = parseInt(idParts[1]);
-                updateMarketDataFromRow(index);
-                const bearCell = document.getElementById(`bear-${index}`);
-                if (bearCell) bearCell.innerText = (100 - window.marketData[index].bull).toFixed(1) + " %";
-                updateChartDirectly();
-                clearTimeout(window.syncTimer);
-                window.syncTimer = setTimeout(() => window.syncToCloud(), 500);
-            });
-        });
-    }
-
-    function updateMarketDataFromRow(index) {
-        const dateInput = document.getElementById(`date-${index}`);
-        const hsiInput = document.getElementById(`hsi-${index}`);
-        const bullInput = document.getElementById(`bull-${index}`);
-        if (dateInput && hsiInput && bullInput) {
-            window.marketData[index].date = dateInput.value.replace(/\s*\(.*\)/g, "");
-            window.marketData[index].hsi = parseFloat(hsiInput.value) || 0;
-            window.marketData[index].bull = parseFloat(bullInput.value) || 0;
-        }
-    }
-
-    window.deleteRowHandler = async function(index) {
-        window.marketData.splice(index, 1);
-        renderTable();
-        updateChartDirectly();
-        showStatusMessage("⏳ 正在同步刪除...");
-        try {
-            await docRef.set({ list: window.marketData });
-            showStatusMessage("✅ 刪除已同步！");
-        } catch (e) {
-            showStatusMessage("❌ 雲端同步失敗");
-        }
-    }
-
-    window.addRow = function() {
-        const lastItem = window.marketData[window.marketData.length - 1] || { date: "2026-06-04", hsi: 25000, bull: 65 };
-        let nextDate = "2026-06-05";
-        if (lastItem.date && lastItem.date.includes("-")) {
-            let parts = lastItem.date.split("-");
-            let day = parseInt(parts[2]);
-            if (!isNaN(day)) nextDate = `${parts[0]}-${parts[1]}-${String(day + 1).padStart(2, '0')}`;
-        }
-        window.marketData.push({
-            date: nextDate, hsi: lastItem.hsi, bull: lastItem.bull, bull_amount: null, bear_amount: null
-        });
-        renderTable();
-        window.syncToCloud();
     }
 
     function updateChartDirectly() {
@@ -484,8 +389,8 @@
                             },
                             afterLabel: function(context) {
                                 const localIndex = context.dataIndex;
-                                const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
-                                    ? window.chartInstance.globalIndices[localIndex] 
+                                const globalIndex = (window.chartInstance && window.chartInstance.globalIndices)
+                                    ? window.chartInstance.globalIndices[localIndex]
                                     : localIndex;
                                 if (!window.marketData || !window.marketData[globalIndex]) return '';
                                 const item = window.marketData[globalIndex];
@@ -531,11 +436,6 @@
         updateChartDirectly();
     }
 
-    function showStatusMessage(text) {
-        const msgDiv = document.getElementById('statusMsg'); if (!msgDiv) return;
-        msgDiv.innerText = text; msgDiv.style.display = 'block';
-        if (!text.includes("🔍") && !text.includes("⏳")) setTimeout(() => { msgDiv.style.display = 'none'; }, 2000);
-    }
     function showLoading(show) { const mask = document.getElementById('loadingMask'); if (mask) mask.style.display = show ? 'flex' : 'none'; }
     function escapeHtml(str) { return str ? str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : ''; }
 
@@ -552,15 +452,14 @@
             const slider = document.getElementById('dayRangeSlider');
             const label = document.getElementById('dayRangeLabel');
             if (slider && window.marketData.length > 0) {
-                slider.max = window.marketData.length;
-                slider.value = Math.min(window.marketData.length, 999);
+                slider.max = Math.max(window.marketData.length, 30);
+                // 預設顯示最近 30 天,但不超過資料總筆數
+                slider.value = Math.min(window.marketData.length, 30);
                 window.displayDays = parseInt(slider.value);
                 if (label) label.innerText = window.displayDays >= 999 ? '全部' : window.displayDays;
             }
         });
-        document.getElementById('addRowBtn').addEventListener('click', window.addRow);
         document.getElementById('refreshBtn').addEventListener('click', loadCloudData);
-        document.getElementById('rebuildDbBtn').addEventListener('click', window.rebuildDatabase);
         document.getElementById('toggleTableBtn').addEventListener('click', window.toggleTableDisplay);
     });
 </script>
