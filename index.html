@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>恒指與牛熊街貨比率背馳互動觀測圖表 (深色專業版 V3.4)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #1a202c; color: #e2e8f0; margin: 0; padding: 12px;
+        }
+        .container {
+            max-width: 1200px; margin: 0 auto; background: #2d3748; padding: 15px;
+            border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); position: relative;
+        }
+        h1 { color: #f7fafc; text-align: center; margin-bottom: 5px; font-size: 20px; }
+        .subtitle { color: #a0aec0; text-align: center; margin-bottom: 20px; font-size: 13px; }
+        .chart-container {
+            position: relative; height: 380px; width: 100%; margin-bottom: 20px;
+            background: #1e293b; border-radius: 8px; padding: 10px 5px 5px 5px;
+        }
+        .data-panel { background: #1e293b; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #4a5568; }
+        .panel-title { font-size: 15px; font-weight: bold; color: #90cdf4; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 6px; overflow: hidden; font-size: 13px; }
+        th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #4a5568; color: #e2e8f0; }
+        th { background-color: #4a5568; color: white; font-size: 13px; font-weight: 600; }
+        input[type="text"], input[type="number"] {
+            width: 85%; padding: 5px; border: 1px solid #4a5568; border-radius: 4px;
+            text-align: center; font-size: 13px; background: #1e293b; color: #e2e8f0;
+        }
+        input:focus { border-color: #90cdf4; outline: none; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+        .btn-add { background-color: #38a169; color: white; width: 100%; margin-bottom: 12px; padding: 10px; }
+        .btn-add:hover { background-color: #2f855a; }
+        .btn-refresh { background-color: #4a5568; color: white; font-size: 12px; padding: 4px 8px; }
+        .btn-force { background-color: #dd6b20; color: white; font-size: 12px; padding: 4px 8px; margin-left: 4px; }
+        .btn-rebuild { background-color: #e53e3e; color: white; font-size: 12px; padding: 4px 8px; margin-left: 4px; }
+        .btn-delete { background-color: #e53e3e; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
+        .btn-delete:hover { background-color: #c53030; }
+        .status-msg { background: #1a365d; color: #bee3f8; padding: 8px; border-radius: 6px; margin-top: 10px; text-align: center; font-size: 13px; display: none; font-weight: bold; }
+        .badge { display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; color: white; margin-top: 3px; }
+        .badge-overheat { background-color: #e53e3e; }
+        .badge-killbull { background-color: #d69e2e; color: #1a202c; }
+        .badge-freeze { background-color: #3182ce; }
+        .badge-killbear { background-color: #805ad5; }
+        .loading-mask { position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; z-index:10; font-size: 15px; font-weight:bold; color:#90cdf4; display:none; border-radius: 12px; }
+        .date-cell-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .slider-container { display: flex; align-items: center; justify-content: center; margin: 10px 0 20px; gap: 10px; color: #a0aec0; }
+        .slider-container input[type=range] { width: 200px; accent-color: #90cdf4; }
+        @media (max-width: 600px) {
+            body { padding: 8px; } h1 { font-size: 18px; } .chart-container { height: 300px; }
+            .col-bear { display: none; } th, td { padding: 6px 4px; font-size: 12px; }
+            input[type="text"], input[type="number"] { padding: 4px 2px; font-size: 12px; }
+        }
+        @media (min-width: 601px) {
+            .container { padding: 30px; } h1 { font-size: 26px; } .subtitle { font-size: 14px; }
+            .chart-container { height: 520px; } .data-panel { padding: 20px; }
+            .panel-title { font-size: 18px; margin-bottom: 15px; } .btn-add { width: auto; margin-bottom: 15px; padding: 8px 16px; }
+            .btn-refresh { font-size: 14px; padding: 8px 16px; } th, td { padding: 10px 12px; font-size: 14px; }
+            input[type="text"], input[type="number"] { font-size: 14px; width: 90%; } .badge { font-size: 11px; margin-top: 0; margin-left: 5px; }
+            .date-cell-container { flex-direction: row; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div id="loadingMask" class="loading-mask">🔄 正在與 Firebase 雲端同步...</div>
+    <h1>📊 恆指牛熊街貨量化觀測系統V3.4</h1>
+    <div id="nextGannDisplay" style="text-align: right; font-size: 13px; color: #90cdf4; font-weight: bold; margin-bottom: 8px; padding-right: 5px;">🌌 下個江恩窗口: --</div>
+    <div class="chart-container"><canvas id="interactiveChart"></canvas></div>
+    <div class="slider-container">
+        <span>📅 顯示最近</span>
+        <input type="range" id="dayRangeSlider" min="7" max="999" value="999" oninput="window.updateDayRange(this.value)">
+        <span id="dayRangeLabel">全部</span>
+        <span>天</span>
+    </div>
+    <div class="data-panel">
+        <div class="panel-title">
+            <span>🛠️ 歷史數據管理面板</span>
+            <div>
+                <button class="btn btn-refresh" id="refreshBtn">🔄 刷新數據</button>
+                <button class="btn btn-rebuild" id="rebuildDbBtn">🚨重置雲端歷史</button>
+            </div>
+        </div>
+        <button class="btn btn-add" id="addRowBtn">＋ 手動新增一日數據</button>
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th style="width: 32%;">日期</th>
+                    <th style="width: 28%;">恒指收市價</th>
+                    <th style="width: 25%;">牛證比例</th>
+                    <th style="width: 15%;" class="col-bear">熊證比例</th>
+                    <th style="width: 15%;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+        <button id="toggleTableBtn" class="btn" style="width: 100%; margin-top: 12px; background-color: #4a5568; color: white; padding: 8px;">🔽 展開全部歷史數據</button>
+        <div id="statusMsg" class="status-msg">已自動儲存</div>
+    </div>
+</div>
+
+<script>
+    window.marketData = [];
+    window.chartInstance = null;
+    window.isTableExpanded = false;
+    window.displayDays = 999;
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAPuQf_rtonxZ6DxGOEuk_WLLLC6hgDdfI",
+        authDomain: "bull-bear-ratio-record.firebaseapp.com",
+        projectId: "bull-bear-ratio-record",
+        storageBucket: "bull-bear-ratio-record.firebasestorage.app",
+        messagingSenderId: "49946190061",
+        appId: "1:49946190061:web:867765d5eb918f83b62ce4",
+        measurementId: "G-XE69HF005H"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const docRef = db.collection("market").doc("hsi_data");
+
+    const defaultData = [
+        { date: "2026-05-11", hsi: 26406.84, bull: 65.9, bull_amount: null, bear_amount: null },
+        { date: "2026-05-12", hsi: 26347.91, bull: 67.3, bull_amount: null, bear_amount: null },
+        { date: "2026-05-13", hsi: 26388.44, bull: 70.8, bull_amount: null, bear_amount: null },
+        { date: "2026-05-14", hsi: 26389.04, bull: 75.4, bull_amount: 17106, bear_amount: 5593 },
+        { date: "2026-05-15", hsi: 25962.73, bull: 73.1, bull_amount: 14776, bear_amount: 5433 },
+        { date: "2026-05-18", hsi: 25675.18, bull: 69.6, bull_amount: 12702, bear_amount: 5550 },
+        { date: "2026-05-19", hsi: 25797.85, bull: 66.2, bull_amount: 12152, bear_amount: 6198 },
+        { date: "2026-05-20", hsi: 25651.22, bull: 67.1, bull_amount: 12770, bear_amount: 6266 },
+        { date: "2026-05-21", hsi: 25386.52, bull: 66.8, bull_amount: 12771, bear_amount: 6350 },
+        { date: "2026-05-22", hsi: 25606.03, bull: 61.3, bull_amount: 11465, bear_amount: 7229 },
+        { date: "2026-05-26", hsi: 25599.45, bull: 56.7, bull_amount: 9300, bear_amount: 7107, bull_500_amount: 3200 },
+        { date: "2026-05-27", hsi: 25328.23, bull: 65.8, bull_amount: 12974, bear_amount: 6731, bull_500_amount: 4100 },
+        { date: "2026-05-28", hsi: 25006.16, bull: 64.1, bull_amount: 12169, bear_amount: 6826, bull_500_amount: 3680 },
+        { date: "2026-05-29", hsi: 25182.39, bull: 56.2, bull_amount: 10498, bear_amount: 8195, bull_500_amount: 2004 },
+        { date: "2026-06-01", hsi: 25398.18, bull: 52.2, bull_amount: 8223, bear_amount: 7516, bull_500_amount: 415 },
+        { date: "2026-06-02", hsi: 26038.32, bull: 46.0, bull_amount: 7571, bear_amount: 8892, bull_500_amount: 0 },
+        { date: "2026-06-03", hsi: 25633.21, bull: 58.4, bull_amount: 9103, bear_amount: 6481, bull_500_amount: 2235 },
+        { date: "2026-06-04", hsi: 25253.4, bull: 60.9, bull_amount: 10874, bear_amount: 6989, bull_500_amount: 3423 },
+        { date: "2026-06-05", hsi: 24961.95, bull: 60.1, bull_amount: 10878, bear_amount: 7208, bull_500_amount: 4574 },
+        { date: "2026-06-08", hsi: 24657.06, bull: 56.8, bull_amount: 7308, bear_amount: 5548, bull_500_amount: 2552 },
+        { date: "2026-06-09", hsi: 24565.9, bull: 58.1, bull_amount: 10331, bear_amount: 7458, bull_500_amount: 5127 },
+        { date: "2026-06-10", hsi: 24407.96, bull: 57.2, bull_amount: 9766, bear_amount: 7318, bull_500_amount: 4012 },
+        { date: "2026-06-11", hsi: 24249.29, bull: 55.9, bull_amount: 8996, bear_amount: 7091, bull_500_amount: 3152 },
+        { date: "2026-06-12", hsi: 24718.1, bull: 52.4, bull_amount: 8174, bear_amount: 7435, bull_500_amount: 427 }
+    ];
+
+    window.getMarketStatus = function(index) {
+        if (index < 0 || index >= window.marketData.length) return { text: "", badgeHTML: "" };
+        const current = window.marketData[index];
+        const prev = index > 0 ? window.marketData[index - 1] : null;
+        if (!current || typeof current.bull !== 'number') return { text: "", badgeHTML: "" };
+        if (current.bull >= 70) return { text: " (過熱)", badgeHTML: `<span class="badge badge-overheat">🔥過熱</span>` };
+        if (current.bull_500_amount >= 3500) return { text: " (近距殺牛)", badgeHTML: `<span class="badge badge-killbull">⚡近距殺牛</span>` };
+        if (current.bull <= 30) return { text: " (過冷)", badgeHTML: `<span class="badge badge-freeze">❄️過冷</span>` };
+        if (prev && typeof prev.bull === 'number' && prev.bull <= 35 && (current.bull - prev.bull) >= 1.5) return { text: " (殺熊)", badgeHTML: `<span class="badge badge-killbear">💥殺熊</span>` };
+        return { text: "", badgeHTML: "" };
+    };
+
+    const getPointEmoji = (context) => {
+        const localIndex = context.dataIndex;
+        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
+            ? window.chartInstance.globalIndices[localIndex] 
+            : localIndex;
+        const status = window.getMarketStatus(globalIndex);
+        if (status.text.includes("過熱")) return "🔥";
+        if (status.text.includes("殺牛")) return "⚡";
+        if (status.text.includes("過冷")) return "❄️";
+        if (status.text.includes("殺熊")) return "💥";
+        return "";
+    };
+
+    const isGannWindow = (dateStr) => {
+        if (!dateStr || !dateStr.includes("-")) return false;
+        const parts = dateStr.split('-');
+        if (parts.length < 3) return false;
+        const md = `${parts[1]}-${parts[2]}`;
+        const specialDays = ["03-21", "05-15", "06-21", "07-23", "09-21", "11-15", "12-21"];
+        return specialDays.includes(md);
+    };
+
+    const isGannDay = (context) => {
+        const localIndex = context.dataIndex;
+        const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
+            ? window.chartInstance.globalIndices[localIndex] 
+            : localIndex;
+        if (!window.marketData || !window.marketData[globalIndex]) return "";
+        return isGannWindow(window.marketData[globalIndex].date) ? "🌌" : "";
+    };
+
+    function updateNextGannDisplay() {
+        if (!window.marketData || window.marketData.length === 0) return;
+        const lastItem = window.marketData[window.marketData.length - 1];
+        if (!lastItem || !lastItem.date || !lastItem.date.includes("-")) return;
+        const parts = lastItem.date.split('-');
+        const currY = parseInt(parts[0]), currM = parseInt(parts[1]), currD = parseInt(parts[2]);
+        const currNum = currM * 100 + currD;
+        const specialDays = ["03-21", "05-15", "06-21", "07-23", "09-21", "11-15", "12-21"];
+        let nextGann = null;
+        for (let md of specialDays) {
+            const gm = parseInt(md.split('-')[0]), gd = parseInt(md.split('-')[1]);
+            if (gm * 100 + gd > currNum) { nextGann = `${currY}-${md}`; break; }
+        }
+        if (!nextGann) nextGann = `${currY + 1}-${specialDays[0]}`;
+        const displayEl = document.getElementById('nextGannDisplay');
+        if (displayEl) displayEl.innerHTML = `🌌 下個江恩窗口: <span style="color:#e2e8f0;">${nextGann}</span>`;
+    }
+
+    function formatToShortDate(dateStr) {
+        if (dateStr && dateStr.includes("-") && dateStr.split("-").length === 3) {
+            const parts = dateStr.split("-");
+            return `${parts[1]}-${parts[2]}`;
+        }
+        return dateStr;
+    }
+
+    async function loadCloudData() {
+        showLoading(true);
+        const backupTimeout = setTimeout(() => {
+            if (window.marketData.length === 0) {
+                window.marketData = [...defaultData];
+                renderTable();
+                initChart();
+                showLoading(false);
+            }
+        }, 3000);
+        try {
+            const docSnap = await docRef.get();
+            clearTimeout(backupTimeout);
+            if (docSnap.exists && docSnap.data().list && docSnap.data().list.length > 0) {
+                window.marketData = docSnap.data().list;
+            } else {
+                window.marketData = [...defaultData];
+                await docRef.set({ list: window.marketData });
+            }
+            renderTable();
+            initChart();
+            showLoading(false);
+        } catch (error) {
+            console.log("雲端連線異常，使用本地預設：" + error.message);
+            clearTimeout(backupTimeout);
+            window.marketData = [...defaultData];
+            renderTable();
+            initChart();
+            showLoading(false);
+        }
+    }
+
+    window.syncToCloud = async function() {
+        try {
+            await docRef.set({ list: window.marketData });
+            showStatusMessage("✅ 雲端同步成功！");
+        } catch (e) {
+            showStatusMessage("⚠️ 雲端同步失敗");
+        }
+    }
+
+    window.rebuildDatabase = async function() {
+        if (confirm("🔮 確定要將程式碼中最新的完整歷史數據覆蓋重置到 Firebase 雲端嗎？")) {
+            showLoading(true);
+            try {
+                window.marketData = [...defaultData];
+                await docRef.set({ list: window.marketData });
+                renderTable();
+                initChart();
+                showStatusMessage("⚡ 雲端數據庫修復重置完畢！");
+            } catch (e) {
+                alert("重置失敗: " + e.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+    }
+
+    window.toggleTableDisplay = function() {
+        window.isTableExpanded = !window.isTableExpanded;
+        const btn = document.getElementById('toggleTableBtn');
+        if (window.isTableExpanded) {
+            btn.innerHTML = "🔼 收起歷史數據 (僅顯示近 5 日)";
+            btn.style.backgroundColor = "#2d3748";
+        } else {
+            btn.innerHTML = "🔽 展開全部歷史數據";
+            btn.style.backgroundColor = "#4a5568";
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!window.marketData) return;
+        const totalRows = window.marketData.length;
+        const displayLimit = 5;
+        window.marketData.forEach((item, index) => {
+            if (!window.isTableExpanded && index < totalRows - displayLimit) return;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <div class="date-cell-container">
+                        <input type="text" value="${escapeHtml(item.date)}" id="date-${index}" class="auto-save-input">
+                        <span id="badge-container-${index}">${window.getMarketStatus(index).badgeHTML}</span>
+                    </div>
+                </td>
+                <td><input type="number" value="${item.hsi}" id="hsi-${index}" step="0.01" class="auto-save-input"></td>
+                <td><input type="number" value="${item.bull}" id="bull-${index}" min="0" max="100" step="0.1" class="auto-save-input"></td>
+                <td id="bear-${index}" class="col-bear">${(100 - item.bull).toFixed(1)} %</td>
+                <td><button class="btn btn-delete" onclick="window.deleteRowHandler(${index})">刪除</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+        document.querySelectorAll('.auto-save-input').forEach(input => {
+            input.addEventListener('input', function(e) {
+                const idParts = e.target.id.split('-');
+                const index = parseInt(idParts[1]);
+                updateMarketDataFromRow(index);
+                const bearCell = document.getElementById(`bear-${index}`);
+                if (bearCell) bearCell.innerText = (100 - window.marketData[index].bull).toFixed(1) + " %";
+                updateChartDirectly();
+                clearTimeout(window.syncTimer);
+                window.syncTimer = setTimeout(() => window.syncToCloud(), 500);
+            });
+        });
+    }
+
+    function updateMarketDataFromRow(index) {
+        const dateInput = document.getElementById(`date-${index}`);
+        const hsiInput = document.getElementById(`hsi-${index}`);
+        const bullInput = document.getElementById(`bull-${index}`);
+        if (dateInput && hsiInput && bullInput) {
+            window.marketData[index].date = dateInput.value.replace(/\s*\(.*\)/g, "");
+            window.marketData[index].hsi = parseFloat(hsiInput.value) || 0;
+            window.marketData[index].bull = parseFloat(bullInput.value) || 0;
+        }
+    }
+
+    window.deleteRowHandler = async function(index) {
+        window.marketData.splice(index, 1);
+        renderTable();
+        updateChartDirectly();
+        showStatusMessage("⏳ 正在同步刪除...");
+        try {
+            await docRef.set({ list: window.marketData });
+            showStatusMessage("✅ 刪除已同步！");
+        } catch (e) {
+            showStatusMessage("❌ 雲端同步失敗");
+        }
+    }
+
+    window.addRow = function() {
+        const lastItem = window.marketData[window.marketData.length - 1] || { date: "2026-06-04", hsi: 25000, bull: 65 };
+        let nextDate = "2026-06-05";
+        if (lastItem.date && lastItem.date.includes("-")) {
+            let parts = lastItem.date.split("-");
+            let day = parseInt(parts[2]);
+            if (!isNaN(day)) nextDate = `${parts[0]}-${parts[1]}-${String(day + 1).padStart(2, '0')}`;
+        }
+        window.marketData.push({
+            date: nextDate, hsi: lastItem.hsi, bull: lastItem.bull, bull_amount: null, bear_amount: null
+        });
+        renderTable();
+        window.syncToCloud();
+    }
+
+    function updateChartDirectly() {
+        if (!window.chartInstance || !window.marketData || window.marketData.length === 0) return;
+        updateNextGannDisplay();
+        const totalLen = window.marketData.length;
+        const showCount = Math.min(window.displayDays, totalLen);
+        const slicedData = window.marketData.slice(-showCount);
+        const globalIndices = [];
+        for (let i = totalLen - showCount; i < totalLen; i++) globalIndices.push(i);
+        window.chartInstance.globalIndices = globalIndices;
+
+        window.chartInstance.data.labels = slicedData.map(item => formatToShortDate(item.date));
+        window.chartInstance.data.datasets[0].data = slicedData.map(item => item.hsi);
+        window.chartInstance.data.datasets[1].data = slicedData.map(item => item.bull);
+        window.chartInstance.data.datasets[2].data = slicedData.map(item => item.bull);
+        window.chartInstance.data.datasets[3].data = slicedData.map(item => item.bull_amount);
+        window.chartInstance.data.datasets[4].data = slicedData.map(item => item.bear_amount);
+
+        const bulls = slicedData.map(item => item.bull).filter(b => typeof b === 'number' && !isNaN(b));
+        if (bulls.length > 0) {
+            window.chartInstance.options.scales.yAxisRatio.min = Math.floor(Math.min(25, Math.min(...bulls)) / 5) * 5;
+            window.chartInstance.options.scales.yAxisRatio.max = Math.ceil(Math.max(80, Math.max(...bulls)) / 5) * 5;
+        }
+        const amounts = slicedData.flatMap(item => [item.bull_amount, item.bear_amount]).filter(v => v !== null && !isNaN(v));
+        if (amounts.length > 0) {
+            window.chartInstance.options.scales.yAxisAmount.max = Math.max(...amounts) * 4;
+        }
+        window.chartInstance.update();
+    }
+
+    function initChart() {
+        if (window.chartInstance) window.chartInstance.destroy();
+        const canvas = document.getElementById('interactiveChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const darkBackgroundPlugin = {
+            id: 'darkBackground',
+            beforeDraw: (chart) => {
+                const { ctx, chartArea } = chart;
+                if (!chartArea) return;
+                ctx.save();
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                ctx.restore();
+            }
+        };
+
+        const backColorPlugin = {
+            id: 'backColorPlugin',
+            beforeDraw: (chart) => {
+                const { ctx, chartArea, scales } = chart;
+                if (!chartArea || !scales.yAxisRatio) return;
+                const yScale = scales.yAxisRatio;
+                const maxVal = isNaN(yScale.max) ? 100 : yScale.max;
+                const minVal = isNaN(yScale.min) ? 0 : yScale.min;
+                const topPixel = yScale.getPixelForValue(maxVal);
+                const line70Pixel = yScale.getPixelForValue(70);
+                const line30Pixel = yScale.getPixelForValue(30);
+                const bottomPixel = yScale.getPixelForValue(minVal);
+                ctx.save();
+                if (line70Pixel > topPixel) {
+                    ctx.fillStyle = 'rgba(229, 62, 62, 0.1)';
+                    ctx.fillRect(chartArea.left, topPixel, chartArea.width, line70Pixel - topPixel);
+                }
+                ctx.fillStyle = 'rgba(56, 161, 105, 0.05)';
+                ctx.fillRect(chartArea.left, line70Pixel, chartArea.width, line30Pixel - line70Pixel);
+                if (bottomPixel > line30Pixel) {
+                    ctx.fillStyle = 'rgba(49, 130, 206, 0.1)';
+                    ctx.fillRect(chartArea.left, line30Pixel, chartArea.width, bottomPixel - line30Pixel);
+                }
+                ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = 'rgba(229, 62, 62, 0.6)'; ctx.beginPath(); ctx.moveTo(chartArea.left, line70Pixel); ctx.lineTo(chartArea.right, line70Pixel); ctx.stroke();
+                ctx.strokeStyle = 'rgba(49, 130, 206, 0.6)'; ctx.beginPath(); ctx.moveTo(chartArea.left, line30Pixel); ctx.lineTo(chartArea.right, line30Pixel); ctx.stroke();
+                ctx.restore();
+            }
+        };
+
+        const amounts = window.marketData.flatMap(item => [item.bull_amount, item.bear_amount]).filter(v => v !== null && !isNaN(v));
+        const initMaxAmount = amounts.length > 0 ? Math.max(...amounts) * 4 : 40000;
+
+        window.chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: window.marketData.map(item => formatToShortDate(item.date)),
+                datasets: [
+                    { label: '恒生指數 (HSI)', data: window.marketData.map(item => item.hsi), borderColor: '#63b3ed', backgroundColor: 'rgba(99, 179, 237, 0.08)', yAxisID: 'yAxisHSI', borderWidth: 2.5, pointRadius: 4, tension: 0.15 },
+                    { label: '牛證比例 (%)', data: window.marketData.map(item => item.bull), borderColor: '#fc8181', backgroundColor: 'transparent', yAxisID: 'yAxisRatio', borderWidth: 2.5, tension: 0.15, pointStyle: getPointEmoji, pointRadius: 8, pointBorderWidth: 1.5, pointBorderColor: '#fc8181', pointBackgroundColor: '#1e293b', hoverPointStyle: getPointEmoji, hoverRadius: 10, spanGaps: true },
+                    { label: '江恩時間窗口', data: window.marketData.map(item => item.bull), borderColor: 'transparent', backgroundColor: 'transparent', yAxisID: 'yAxisRatio', borderWidth: 0, pointRadius: 0, pointStyle: isGannDay, hoverRadius: 0 },
+                    { type: 'bar', label: '牛證街貨張數', data: window.marketData.map(item => item.bull_amount), backgroundColor: 'rgba(252, 129, 129, 0.3)', borderColor: 'rgba(252, 129, 129, 0.6)', borderWidth: 1, yAxisID: 'yAxisAmount', barPercentage: 0.5, categoryPercentage: 0.75 },
+                    { type: 'bar', label: '熊證街貨張數', data: window.marketData.map(item => item.bear_amount), backgroundColor: 'rgba(72, 187, 120, 0.3)', borderColor: 'rgba(72, 187, 120, 0.6)', borderWidth: 1, yAxisID: 'yAxisAmount', barPercentage: 0.5, categoryPercentage: 0.75 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                scales: {
+                    yAxisHSI: { position: 'left', ticks: { color: '#a0aec0', font: { size: 10 }, callback: v => v.toLocaleString() }, grid: { color: '#4a5568' } },
+                    yAxisRatio: { position: 'right', ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { drawOnChartArea: false } },
+                    yAxisAmount: { position: 'right', display: false, min: 0, max: initMaxAmount, grid: { drawOnChartArea: false } }
+                },
+                plugins: {
+                    legend: { labels: { filter: (item) => item.text !== '江恩時間窗口', color: '#e2e8f0', font: { size: 11 } } },
+                    tooltip: {
+                        filter: function(tooltipItem) {
+                            return tooltipItem.datasetIndex === 0 || tooltipItem.datasetIndex === 1;
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toLocaleString();
+                                    if (context.dataset.yAxisID === 'yAxisRatio') label += '%';
+                                }
+                                return label;
+                            },
+                            afterLabel: function(context) {
+                                const localIndex = context.dataIndex;
+                                const globalIndex = (window.chartInstance && window.chartInstance.globalIndices) 
+                                    ? window.chartInstance.globalIndices[localIndex] 
+                                    : localIndex;
+                                if (!window.marketData || !window.marketData[globalIndex]) return '';
+                                const item = window.marketData[globalIndex];
+                                let notes = [];
+                                if (isGannWindow(item.date)) notes.push("🌌 江恩時間窗口");
+                                if (item.bull >= 70) notes.push("🔥 牛證過熱 (極端危險)");
+                                if (item.bull <= 30) notes.push("❄️ 熊證過剩 (留意誘多)");
+                                if (typeof item.bull_amount === 'number') notes.push(`🐂 牛證張數: ${item.bull_amount.toLocaleString()}`);
+                                if (typeof item.bear_amount === 'number') notes.push(`🐻 熊證張數: ${item.bear_amount.toLocaleString()}`);
+                                if (typeof item.bull_500_amount === 'number') notes.push(`🎯 500點內重貨牛證: ${item.bull_500_amount.toLocaleString()} 張`);
+                                return notes.join('\n');
+                            }
+                        }
+                    }
+                }
+            },
+            plugins: [darkBackgroundPlugin, backColorPlugin, {
+                id: 'chartStylePlugin',
+                beforeDraw: (chart) => {
+                    const datasets = chart.data.datasets; const ctx = chart.ctx; ctx.save();
+                    ctx.font = '14px "apple color emoji", "segoe ui emoji", "segoe ui symbol", "noto color emoji"';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    datasets.forEach((dataset, datasetIndex) => {
+                        const meta = chart.getDatasetMeta(datasetIndex);
+                        if (dataset.pointStyle && typeof dataset.pointStyle === 'function') {
+                            dataset.data.forEach((value, index) => {
+                                const point = meta.data[index];
+                                if (point) {
+                                    const yPos = chart.scales.yAxisRatio.getPixelForValue(value);
+                                    const emoji = dataset.pointStyle({ dataIndex: index });
+                                    if (emoji && !isNaN(point.x) && !isNaN(yPos)) {
+                                        const emojiYPos = emoji === '🌌' ? yPos + 18 : yPos - 14;
+                                        ctx.fillText(emoji, point.x, emojiYPos);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    ctx.restore();
+                }
+            }]
+        });
+        updateChartDirectly();
+    }
+
+    function showStatusMessage(text) {
+        const msgDiv = document.getElementById('statusMsg'); if (!msgDiv) return;
+        msgDiv.innerText = text; msgDiv.style.display = 'block';
+        if (!text.includes("🔍") && !text.includes("⏳")) setTimeout(() => { msgDiv.style.display = 'none'; }, 2000);
+    }
+    function showLoading(show) { const mask = document.getElementById('loadingMask'); if (mask) mask.style.display = show ? 'flex' : 'none'; }
+    function escapeHtml(str) { return str ? str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) : ''; }
+
+    window.updateDayRange = function(value) {
+        const num = parseInt(value);
+        window.displayDays = num;
+        const label = document.getElementById('dayRangeLabel');
+        if (label) label.innerText = num >= 999 ? '全部' : num;
+        updateChartDirectly();
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadCloudData().then(() => {
+            const slider = document.getElementById('dayRangeSlider');
+            const label = document.getElementById('dayRangeLabel');
+            if (slider && window.marketData.length > 0) {
+                slider.max = window.marketData.length;
+                slider.value = Math.min(window.marketData.length, 999);
+                window.displayDays = parseInt(slider.value);
+                if (label) label.innerText = window.displayDays >= 999 ? '全部' : window.displayDays;
+            }
+        });
+        document.getElementById('addRowBtn').addEventListener('click', window.addRow);
+        document.getElementById('refreshBtn').addEventListener('click', loadCloudData);
+        document.getElementById('rebuildDbBtn').addEventListener('click', window.rebuildDatabase);
+        document.getElementById('toggleTableBtn').addEventListener('click', window.toggleTableDisplay);
+    });
+</script>
+</body>
+</html>
