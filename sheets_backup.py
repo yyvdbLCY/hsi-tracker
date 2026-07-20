@@ -188,6 +188,14 @@ def write_tab(sh, tab_name, rows):
     ws.clear()
     if rows:
         ws.update(rows, "A1")
+    # 驗證: 讀回來確認
+    if rows:
+        verify = ws.get_all_values()
+        if len(verify) != len(rows):
+            raise RuntimeError(f"{tab_name} 驗證失敗: 寫了 {len(rows)} 列但讀回 {len(verify)} 列")
+        print(f"      ✓ {tab_name}: 寫入 + 讀回驗證 OK ({len(rows)} rows)")
+    else:
+        print(f"      ⚠ {tab_name}: 0 rows 跳過")
     return len(rows)
 
 
