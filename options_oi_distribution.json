@@ -1,0 +1,237 @@
+{
+  "date": "2026-07-20",
+  "update_time": "2026-07-20 07:00:00",
+  "last_close": 24562.24,
+  "call_pct": 57.7,
+  "put_pct": 42.3,
+  "strike_count": 20,
+  "strikes": [
+    {
+      "strike": 26400,
+      "call_pct": 4.11,
+      "call_oi": 615,
+      "call_oi_change": -29,
+      "call_flags": [],
+      "put_oi": 16,
+      "put_oi_change": 0,
+      "put_pct": 0.15,
+      "put_flags": []
+    },
+    {
+      "strike": 26200,
+      "call_pct": 6.43,
+      "call_oi": 961,
+      "call_oi_change": 87,
+      "call_flags": [
+        "最多新增"
+      ],
+      "put_oi": 21,
+      "put_oi_change": 0,
+      "put_pct": 0.19,
+      "put_flags": []
+    },
+    {
+      "strike": 26000,
+      "call_pct": 5.51,
+      "call_oi": 824,
+      "call_oi_change": 27,
+      "call_flags": [],
+      "put_oi": 141,
+      "put_oi_change": 0,
+      "put_pct": 1.28,
+      "put_flags": []
+    },
+    {
+      "strike": 25800,
+      "call_pct": 3.62,
+      "call_oi": 541,
+      "call_oi_change": -52,
+      "call_flags": [],
+      "put_oi": 66,
+      "put_oi_change": 0,
+      "put_pct": 0.6,
+      "put_flags": []
+    },
+    {
+      "strike": 25600,
+      "call_pct": 5.59,
+      "call_oi": 836,
+      "call_oi_change": 47,
+      "call_flags": [],
+      "put_oi": 201,
+      "put_oi_change": 1,
+      "put_pct": 1.83,
+      "put_flags": []
+    },
+    {
+      "strike": 25400,
+      "call_pct": 6.83,
+      "call_oi": 1021,
+      "call_oi_change": 45,
+      "call_flags": [],
+      "put_oi": 82,
+      "put_oi_change": 1,
+      "put_pct": 0.75,
+      "put_flags": []
+    },
+    {
+      "strike": 25200,
+      "call_pct": 6.25,
+      "call_oi": 935,
+      "call_oi_change": 56,
+      "call_flags": [],
+      "put_oi": 218,
+      "put_oi_change": -8,
+      "put_pct": 1.99,
+      "put_flags": []
+    },
+    {
+      "strike": 25000,
+      "call_pct": 8.34,
+      "call_oi": 1247,
+      "call_oi_change": 64,
+      "call_flags": [],
+      "put_oi": 441,
+      "put_oi_change": -75,
+      "put_pct": 4.02,
+      "put_flags": []
+    },
+    {
+      "strike": 24800,
+      "call_pct": 6.43,
+      "call_oi": 961,
+      "call_oi_change": 17,
+      "call_flags": [],
+      "put_oi": 684,
+      "put_oi_change": -9,
+      "put_pct": 6.23,
+      "put_flags": []
+    },
+    {
+      "strike": 24600,
+      "call_pct": 5.63,
+      "call_oi": 842,
+      "call_oi_change": -40,
+      "call_flags": [],
+      "put_oi": 333,
+      "put_oi_change": -47,
+      "put_pct": 3.03,
+      "put_flags": []
+    },
+    {
+      "strike": 24400,
+      "call_pct": 3.58,
+      "call_oi": 536,
+      "call_oi_change": -6,
+      "call_flags": [],
+      "put_oi": 387,
+      "put_oi_change": -198,
+      "put_pct": 3.53,
+      "put_flags": []
+    },
+    {
+      "strike": 24200,
+      "call_pct": 6.65,
+      "call_oi": 994,
+      "call_oi_change": -10,
+      "call_flags": [],
+      "put_oi": 881,
+      "put_oi_change": 206,
+      "put_pct": 8.03,
+      "put_flags": []
+    },
+    {
+      "strike": 24000,
+      "call_pct": 8.46,
+      "call_oi": 1266,
+      "call_oi_change": 2,
+      "call_flags": [
+        "重貨區"
+      ],
+      "put_oi": 905,
+      "put_oi_change": -103,
+      "put_pct": 8.24,
+      "put_flags": []
+    },
+    {
+      "strike": 23800,
+      "call_pct": 4.75,
+      "call_oi": 711,
+      "call_oi_change": -5,
+      "call_flags": [],
+      "put_oi": 758,
+      "put_oi_change": 33,
+      "put_pct": 6.91,
+      "put_flags": []
+    },
+    {
+      "strike": 23600,
+      "call_pct": 4.59,
+      "call_oi": 687,
+      "call_oi_change": 1,
+      "call_flags": [],
+      "put_oi": 960,
+      "put_oi_change": -390,
+      "put_pct": 8.75,
+      "put_flags": []
+    },
+    {
+      "strike": 23400,
+      "call_pct": 3.72,
+      "call_oi": 556,
+      "call_oi_change": 1,
+      "call_flags": [],
+      "put_oi": 857,
+      "put_oi_change": -24,
+      "put_pct": 7.81,
+      "put_flags": []
+    },
+    {
+      "strike": 23200,
+      "call_pct": 2.86,
+      "call_oi": 427,
+      "call_oi_change": 0,
+      "call_flags": [],
+      "put_oi": 734,
+      "put_oi_change": -232,
+      "put_pct": 6.69,
+      "put_flags": []
+    },
+    {
+      "strike": 23000,
+      "call_pct": 6.09,
+      "call_oi": 911,
+      "call_oi_change": 0,
+      "call_flags": [],
+      "put_oi": 1746,
+      "put_oi_change": 314,
+      "put_pct": 15.91,
+      "put_flags": [
+        "重貨區",
+        "最多新增"
+      ]
+    },
+    {
+      "strike": 22800,
+      "call_pct": 0.34,
+      "call_oi": 51,
+      "call_oi_change": 0,
+      "call_flags": [],
+      "put_oi": 931,
+      "put_oi_change": 193,
+      "put_pct": 8.48,
+      "put_flags": []
+    },
+    {
+      "strike": 22600,
+      "call_pct": 0.23,
+      "call_oi": 34,
+      "call_oi_change": 0,
+      "call_flags": [],
+      "put_oi": 615,
+      "put_oi_change": 40,
+      "put_pct": 5.6,
+      "put_flags": []
+    }
+  ]
+}
