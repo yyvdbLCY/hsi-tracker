@@ -457,6 +457,8 @@
                                 return label;
                             },
                             afterLabel: function(context) {
+                                // 只在牛證比例那一行加 stats (避免跟 HSI 行重複)
+                                if (context.datasetIndex !== 1) return '';
                                 const localIndex = context.dataIndex;
                                 const globalIndex = (window.chartInstance && window.chartInstance.globalIndices)
                                     ? window.chartInstance.globalIndices[localIndex]
