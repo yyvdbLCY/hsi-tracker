@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write   # 讓 workflow 可以 commit/push 數據回 main
+      contents: write
 
     steps:
       - name: 检出仓库
@@ -24,10 +24,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 安装依赖 (CBBC + Options OI)
+      - name: 安装依赖 (CBBC + Options OI + Sheets)
         run: |
           pip install requests firebase-admin pandas
-          pip install playwright
+          pip install playwright gspread google-auth
           playwright install chromium
 
       - name: 写入 Firebase 密钥
@@ -45,13 +45,19 @@ jobs:
         if: github.event.inputs.backfill_date == ''
         run: python options_oi_crawler.py
 
+      - name: 备份到 Google Sheets (完整記錄)
+        if: github.event.inputs.backfill_date == ''
+        continue-on-error: true   # Sheets 備份失敗不擋主流程
+        env:
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: python sheets_backup.py
+
       - name: Commit & push 數據回 main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # 加入 CBBC 主文件 + archive
           git add cbbc_distribution.json
-          # 加入 Options OI 主文件 + archive
           git add options_oi_distribution.json
           if [ -d "archive" ]; then
             git add archive/
