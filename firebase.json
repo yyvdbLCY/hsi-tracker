@@ -1,0 +1,32 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      ".github",
+      ".git",
+      "archive",
+      "cbbc_crawler.py",
+      "options_oi_crawler.py",
+      "backfill.py",
+      "fix_data.py",
+      "cloud_crawler.py",
+      "requirements.txt",
+      "README.md",
+      "cbbc_distribution.json",
+      "options_oi_distribution.json",
+      "serviceAccountKey.json",
+      "firebase-key.json",
+      "**/*.py",
+      "**/*.json",
+      "**/*.yml",
+      "**/*.md",
+      "**/*.txt"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
