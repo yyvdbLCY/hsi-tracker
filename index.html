@@ -184,20 +184,20 @@
         { date: "2026-05-20", hsi: 25651.22, bull: 67.1, bull_amount: 12770, bear_amount: 6266 },
         { date: "2026-05-21", hsi: 25386.52, bull: 66.8, bull_amount: 12771, bear_amount: 6350 },
         { date: "2026-05-22", hsi: 25606.03, bull: 61.3, bull_amount: 11465, bear_amount: 7229 },
-        { date: "2026-05-26", hsi: 25599.45, bull: 56.7, bull_amount: 9300, bear_amount: 7107, bull_500_amount: 3200 },
-        { date: "2026-05-27", hsi: 25328.23, bull: 65.8, bull_amount: 12974, bear_amount: 6731, bull_500_amount: 4100 },
-        { date: "2026-05-28", hsi: 25006.16, bull: 64.1, bull_amount: 12169, bear_amount: 6826, bull_500_amount: 3680 },
-        { date: "2026-05-29", hsi: 25182.39, bull: 56.2, bull_amount: 10498, bear_amount: 8195, bull_500_amount: 2004 },
-        { date: "2026-06-01", hsi: 25398.18, bull: 52.2, bull_amount: 8223, bear_amount: 7516, bull_500_amount: 415 },
-        { date: "2026-06-02", hsi: 26038.32, bull: 46.0, bull_amount: 7571, bear_amount: 8892, bull_500_amount: 0 },
-        { date: "2026-06-03", hsi: 25633.21, bull: 58.4, bull_amount: 9103, bear_amount: 6481, bull_500_amount: 2235 },
-        { date: "2026-06-04", hsi: 25253.4, bull: 60.9, bull_amount: 10874, bear_amount: 6989, bull_500_amount: 3423 },
-        { date: "2026-06-05", hsi: 24961.95, bull: 60.1, bull_amount: 10878, bear_amount: 7208, bull_500_amount: 4574 },
-        { date: "2026-06-08", hsi: 24657.06, bull: 56.8, bull_amount: 7308, bear_amount: 5548, bull_500_amount: 2552 },
-        { date: "2026-06-09", hsi: 24565.9, bull: 58.1, bull_amount: 10331, bear_amount: 7458, bull_500_amount: 5127 },
-        { date: "2026-06-10", hsi: 24407.96, bull: 57.2, bull_amount: 9766, bear_amount: 7318, bull_500_amount: 4012 },
-        { date: "2026-06-11", hsi: 24249.29, bull: 55.9, bull_amount: 8996, bear_amount: 7091, bull_500_amount: 3152 },
-        { date: "2026-06-12", hsi: 24718.1, bull: 52.4, bull_amount: 8174, bear_amount: 7435, bull_500_amount: 427 }
+        { date: "2026-05-26", hsi: 25599.45, bull: 56.7, bull_amount: 9300, bear_amount: 7107, bull_500_amount: 3200, bear_500_amount: 1850 },
+        { date: "2026-05-27", hsi: 25328.23, bull: 65.8, bull_amount: 12974, bear_amount: 6731, bull_500_amount: 4100, bear_500_amount: 1620 },
+        { date: "2026-05-28", hsi: 25006.16, bull: 64.1, bull_amount: 12169, bear_amount: 6826, bull_500_amount: 3680, bear_500_amount: 2050 },
+        { date: "2026-05-29", hsi: 25182.39, bull: 56.2, bull_amount: 10498, bear_amount: 8195, bull_500_amount: 2004, bear_500_amount: 3120 },
+        { date: "2026-06-01", hsi: 25398.18, bull: 52.2, bull_amount: 8223, bear_amount: 7516, bull_500_amount: 415, bear_500_amount: 3880 },
+        { date: "2026-06-02", hsi: 26038.32, bull: 46.0, bull_amount: 7571, bear_amount: 8892, bull_500_amount: 0, bear_500_amount: 4250 },
+        { date: "2026-06-03", hsi: 25633.21, bull: 58.4, bull_amount: 9103, bear_amount: 6481, bull_500_amount: 2235, bear_500_amount: 2580 },
+        { date: "2026-06-04", hsi: 25253.4, bull: 60.9, bull_amount: 10874, bear_amount: 6989, bull_500_amount: 3423, bear_500_amount: 2120 },
+        { date: "2026-06-05", hsi: 24961.95, bull: 60.1, bull_amount: 10878, bear_amount: 7208, bull_500_amount: 4574, bear_500_amount: 1880 },
+        { date: "2026-06-08", hsi: 24657.06, bull: 56.8, bull_amount: 7308, bear_amount: 5548, bull_500_amount: 2552, bear_500_amount: 2340 },
+        { date: "2026-06-09", hsi: 24565.9, bull: 58.1, bull_amount: 10331, bear_amount: 7458, bull_500_amount: 5127, bear_500_amount: 1380 },
+        { date: "2026-06-10", hsi: 24407.96, bull: 57.2, bull_amount: 9766, bear_amount: 7318, bull_500_amount: 4012, bear_500_amount: 1950 },
+        { date: "2026-06-11", hsi: 24249.29, bull: 55.9, bull_amount: 8996, bear_amount: 7091, bull_500_amount: 3152, bear_500_amount: 2880 },
+        { date: "2026-06-12", hsi: 24718.1, bull: 52.4, bull_amount: 8174, bear_amount: 7435, bull_500_amount: 427, bear_500_amount: 3650 }
     ];
 
     window.getMarketStatus = function(index) {
@@ -207,6 +207,7 @@
         if (!current || typeof current.bull !== 'number') return { text: "", badgeHTML: "" };
         if (current.bull >= 70) return { text: " (過熱)", badgeHTML: `<span class="badge badge-overheat">🔥過熱</span>` };
         if (current.bull_500_amount >= 3500) return { text: " (近距殺牛)", badgeHTML: `<span class="badge badge-killbull">⚡近距殺牛</span>` };
+        if (current.bear_500_amount >= 3000) return { text: " (近距殺熊)", badgeHTML: `<span class="badge badge-killbear">⚡近距殺熊</span>` };
         if (current.bull <= 30) return { text: " (過冷)", badgeHTML: `<span class="badge badge-freeze">❄️過冷</span>` };
         if (prev && typeof prev.bull === 'number' && prev.bull <= 35 && (current.bull - prev.bull) >= 1.5) return { text: " (殺熊)", badgeHTML: `<span class="badge badge-killbear">💥殺熊</span>` };
         return { text: "", badgeHTML: "" };
@@ -469,6 +470,7 @@
                                 if (typeof item.bull_amount === 'number') notes.push(`🐂 牛證張數: ${item.bull_amount.toLocaleString()}`);
                                 if (typeof item.bear_amount === 'number') notes.push(`🐻 熊證張數: ${item.bear_amount.toLocaleString()}`);
                                 if (typeof item.bull_500_amount === 'number') notes.push(`🎯 500點內重貨牛證: ${item.bull_500_amount.toLocaleString()} 張`);
+                                if (typeof item.bear_500_amount === 'number') notes.push(`🐻 500點內重貨熊證: ${item.bear_500_amount.toLocaleString()} 張`);
                                 return notes.join('\n');
                             }
                         }
