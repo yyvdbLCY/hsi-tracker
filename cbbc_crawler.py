@@ -196,10 +196,16 @@ def fetch_and_parse_hkex(target_date: datetime.date, hsi_last: float = None):
     except Exception as e:
         return None, str(e)
 
-def fallback_sg_full():
-    """完全回退到法兴 API，使用官方汇总数据"""
+def fallback_sg_full(target_date=None):
+    """完全回退到法兴 API，使用官方汇总数据
+    target_date: 指定補捉日期 (date 物件) ；None = 今天
+    """
+    if target_date is None:
+        target_date = datetime.date.today()
+    sdate_param = target_date.strftime("%y%m%d")
+    
     API_URL = "https://hk.warrants.com/hk/data/chart/stock_cbbc_real2.cgi"
-    params = {"ucode": "HSI", "spread": "100", "sdate": "", "_": int(time.time() * 1000)}
+    params = {"ucode": "HSI", "spread": "100", "sdate": sdate_param, "_": int(time.time() * 1000)}
     headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://hk.warrants.com/tc/cbbc/outstanding-distribution"}
     resp = requests.get(API_URL, params=params, headers=headers, timeout=15)
     resp.raise_for_status()
@@ -207,7 +213,8 @@ def fallback_sg_full():
 
     fd = raw.get("furtherData", {})
     hsi_last = float(fd.get("hsilast", 0))
-    data_date = fd.get("sdate", datetime.date.today().isoformat())
+    # 使用請求的日期當作 data_date (保證日期標記正確)
+    data_date = target_date.isoformat()
     sum_bull = int(fd.get("sumBull", 0))
     sum_bear = int(fd.get("sumBear", 0))
 
