@@ -39,6 +39,37 @@
         .loading-mask { position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; z-index:10; font-size: 15px; font-weight:bold; color:#90cdf4; display:none; border-radius: 12px; }
         .date-cell-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .slider-container { display: flex; align-items: center; justify-content: center; margin: 10px 0 20px; gap: 10px; color: #a0aec0; font-size: 13px; }
+
+        /* ===== HSI 期權 OI 牆位 ===== */
+        .oi-summary { padding: 8px 0 14px; }
+        .oi-summary-row { display: flex; align-items: center; gap: 8px; }
+        .oi-label { font-weight: bold; font-size: 13px; min-width: 64px; text-align: center; }
+        .oi-call { color: #fc8181; }
+        .oi-put { color: #68d391; }
+        .oi-bar-track { flex: 1; height: 22px; background: #1a202c; border-radius: 4px; position: relative; overflow: hidden; border: 1px solid #2d3748; }
+        .oi-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+        .oi-bar-call { background: linear-gradient(90deg, rgba(252,129,129,0.45) 0%, #c53030 100%); }
+        .oi-bar-put { background: linear-gradient(90deg, #2f855a 0%, rgba(104,211,145,0.45) 100%); }
+        .oi-pct { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 12px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+        .oi-pct-left { right: auto; left: 8px; }
+        .oi-divider { color: #4a5568; font-weight: bold; padding: 0 2px; }
+
+        .oi-table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 6px; overflow: hidden; font-size: 12px; margin-top: 6px; }
+        .oi-table th { background: #4a5568; color: white; padding: 8px 4px; font-size: 12px; font-weight: 600; }
+        .oi-table td { padding: 0; text-align: center; border-bottom: 1px solid #4a5568; color: #e2e8f0; height: 26px; }
+        .oi-row-heavy td { background: rgba(229, 62, 62, 0.12); }
+        .oi-col-pct { width: 11%; }
+        .oi-col-strike { width: 22%; font-weight: bold; color: #90cdf4; font-size: 13px; }
+        .oi-cell-bar-wrap { position: relative; height: 100%; min-height: 26px; }
+        .oi-cell-bar-call { position: absolute; right: 0; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(252,129,129,0.35) 0%, #c53030 100%); border-radius: 2px; }
+        .oi-cell-bar-put { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #2f855a 0%, rgba(104,211,145,0.35) 100%); border-radius: 2px; }
+        .oi-cell-text-call { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; }
+        .oi-cell-text-put { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.7); white-space: nowrap; }
+        .oi-cell-pct { font-size: 12px; }
+        .oi-flag { display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold; margin-left: 3px; color: white; }
+        .oi-flag-heavy { background: #e53e3e; }
+        .oi-flag-most { background: #d69e2e; color: #1a202c; }
+        .oi-update-time { font-size: 12px; color: #a0aec0; font-weight: normal; }
         .slider-container input[type=range] { width: 200px; accent-color: #90cdf4; }
         @media (max-width: 600px) {
             body { padding: 8px; } h1 { font-size: 18px; } .chart-container { height: 300px; }
@@ -83,6 +114,43 @@
             <tbody id="tableBody"></tbody>
         </table>
         <button id="toggleTableBtn" class="btn" style="width: 100%; margin-top: 12px; background-color: #4a5568; color: white; padding: 8px;">🔽 展開全部歷史數據</button>
+    </div>
+
+    <div class="data-panel" style="margin-top: 18px;">
+        <div class="panel-title">
+            <span>📊 HSI 即月期權 OI 牆位</span>
+            <span class="oi-update-time" id="oiUpdateTime">--</span>
+        </div>
+        <div class="oi-summary">
+            <div class="oi-summary-row">
+                <span class="oi-label oi-call">認購街貨</span>
+                <div class="oi-bar-track">
+                    <div class="oi-bar-fill oi-bar-call" id="oiCallBar" style="width: 0%;"></div>
+                    <span class="oi-pct" id="oiCallPct">--%</span>
+                </div>
+                <span class="oi-divider">|</span>
+                <div class="oi-bar-track">
+                    <div class="oi-bar-fill oi-bar-put" id="oiPutBar" style="width: 0%;"></div>
+                    <span class="oi-pct oi-pct-left" id="oiPutPct">--%</span>
+                </div>
+                <span class="oi-label oi-put">認沽街貨</span>
+            </div>
+            <div style="text-align: center; margin-top: 10px; font-size: 12px; color: #a0aec0;">
+                📍 上日收市: <span id="oiLastClose" style="color: #f7fafc; font-weight: bold;">--</span>
+            </div>
+        </div>
+        <table class="oi-table">
+            <thead>
+                <tr>
+                    <th class="oi-col-pct">Call%</th>
+                    <th>Call OI [Δ]</th>
+                    <th class="oi-col-strike">行使價</th>
+                    <th>Put OI [Δ]</th>
+                    <th class="oi-col-pct">Put%</th>
+                </tr>
+            </thead>
+            <tbody id="oiTableBody"></tbody>
+        </table>
     </div>
 </div>
 
@@ -458,10 +526,113 @@
                 window.displayDays = parseInt(slider.value);
                 if (label) label.innerText = window.displayDays >= 999 ? '全部' : window.displayDays;
             }
+            // 順便載入期權 OI 資料
+            loadOptionsData();
         });
-        document.getElementById('refreshBtn').addEventListener('click', loadCloudData);
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadCloudData();
+            loadOptionsData();
+        });
         document.getElementById('toggleTableBtn').addEventListener('click', window.toggleTableDisplay);
     });
+
+    // ===== HSI 期權 OI 牆位 =====
+    const oiDocRef = db.collection("market").doc("hsi_options_oi");
+
+    async function loadOptionsData() {
+        try {
+            const docSnap = await oiDocRef.get();
+            if (!docSnap.exists) {
+                document.getElementById('oiUpdateTime').innerText = '尚無資料';
+                return;
+            }
+            const data = docSnap.data();
+            const list = data.list || [];
+            if (list.length === 0) {
+                document.getElementById('oiUpdateTime').innerText = '尚無資料';
+                return;
+            }
+            // 取最新一筆
+            const latest = list[list.length - 1];
+            renderOptionsOI(latest);
+        } catch (e) {
+            console.log("期權 OI 載入失敗:", e.message);
+            document.getElementById('oiUpdateTime').innerText = '載入失敗';
+        }
+    }
+
+    function oiFlagsHTML(flags) {
+        if (!flags || !flags.length) return '';
+        return flags.map(f => {
+            if (f === '重貨區') return '<span class="oi-flag oi-flag-heavy">重貨區</span>';
+            if (f === '最多新增') return '<span class="oi-flag oi-flag-most">最多新增</span>';
+            return '';
+        }).join('');
+    }
+
+    function renderOptionsOI(data) {
+        const strikes = data.strikes || [];
+        const callPct = data.call_pct || 0;
+        const putPct = data.put_pct || 0;
+        const lastClose = data.last_close || 0;
+        const updateTime = data.update_time || '--';
+
+        document.getElementById('oiUpdateTime').innerText =
+            `更新: ${updateTime} | 收市: ${lastClose.toLocaleString()}`;
+        document.getElementById('oiLastClose').innerText = lastClose.toLocaleString();
+        document.getElementById('oiCallPct').innerText = `${callPct.toFixed(1)}%`;
+        document.getElementById('oiPutPct').innerText = `${putPct.toFixed(1)}%`;
+        document.getElementById('oiCallBar').style.width = `${callPct}%`;
+        document.getElementById('oiPutBar').style.width = `${putPct}%`;
+
+        if (strikes.length === 0) {
+            document.getElementById('oiTableBody').innerHTML =
+                '<tr><td colspan="5" style="padding: 20px; color: #a0aec0;">尚無 strike 資料</td></tr>';
+            return;
+        }
+
+        // 取最大 OI 作為 bar 寬度基準
+        const maxCallOI = Math.max(...strikes.map(s => s.call_oi || 0), 1);
+        const maxPutOI = Math.max(...strikes.map(s => s.put_oi || 0), 1);
+        const maxOI = Math.max(maxCallOI, maxPutOI);
+
+        const tbody = document.getElementById('oiTableBody');
+        tbody.innerHTML = '';
+        strikes.forEach(s => {
+            const isHeavy = ((s.call_flags || []).includes('重貨區')) ||
+                            ((s.put_flags || []).includes('重貨區'));
+            const row = document.createElement('tr');
+            if (isHeavy) row.className = 'oi-row-heavy';
+
+            const callWidth = ((s.call_oi || 0) / maxOI * 100).toFixed(1);
+            const putWidth = ((s.put_oi || 0) / maxOI * 100).toFixed(1);
+            const callChg = s.call_oi_change;
+            const putChg = s.put_oi_change;
+            const callChgText = (callChg > 0 ? '+' : '') + (callChg == null ? '0' : callChg);
+            const putChgText = (putChg > 0 ? '+' : '') + (putChg == null ? '0' : putChg);
+            const callFlagsHTML = oiFlagsHTML(s.call_flags);
+            const putFlagsHTML = oiFlagsHTML(s.put_flags);
+
+            row.innerHTML = `
+                <td class="oi-cell-pct">${(s.call_pct || 0).toFixed(2)}%</td>
+                <td>
+                    <div class="oi-cell-bar-wrap">
+                        <div class="oi-cell-bar-call" style="width: ${callWidth}%;"></div>
+                        <span class="oi-cell-text-call">${(s.call_oi || 0).toLocaleString()}[${callChgText}] ${callFlagsHTML}</span>
+                    </div>
+                </td>
+                <td class="oi-col-strike">${(s.strike || 0).toLocaleString()}</td>
+                <td>
+                    <div class="oi-cell-bar-wrap">
+                        <div class="oi-cell-bar-put" style="width: ${putWidth}%;"></div>
+                        <span class="oi-cell-text-put">${putFlagsHTML}${(s.put_oi || 0).toLocaleString()}[${putChgText}]</span>
+                    </div>
+                </td>
+                <td class="oi-cell-pct">${(s.put_pct || 0).toFixed(2)}%</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
 </script>
 </body>
 </html>
