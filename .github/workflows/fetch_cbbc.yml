@@ -42,6 +42,7 @@ jobs:
         run: python backfill.py ${{ github.event.inputs.backfill_date }}
 
       - name: 执行爬虫 - HSI 期權 OI 牆位
+        if: github.event.inputs.backfill_date == ''
         run: python options_oi_crawler.py
 
       - name: Commit & push 數據回 main
@@ -63,3 +64,12 @@ jobs:
             git push
             echo "✅ 已 push 數據回 main"
           fi
+
+      - name: 部署到 Firebase Hosting
+        if: github.event.inputs.backfill_date == ''
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_KEY }}
+          channelId: live
+          projectId: bull-bear-ratio-record
