@@ -232,8 +232,14 @@ def fallback_sg_full():
             "volume": volume
         })
 
-    # 500点内重货牛证（基于官方总张数位置，可简单留空，因为你主要看比例）
-    bull_500_corrected = 0  # 或者保留你原有計算
+    # 500点内重货牛证：累加所有 strike 在 [hsi-500, hsi] 區間的牛證 volume
+    bull_500_sum = 0
+    if hsi_last > 0:
+        for d in distribution:
+            if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
+                bull_500_sum += d["volume"]
+    # 與 hkex 數據源保持一致 (CORRECTION_FACTOR = 1.0)
+    bull_500_corrected = int(round(bull_500_sum * 1.0))
 
     total = sum_bull + sum_bear
     bull_pct = round(sum_bull / total * 100, 1) if total > 0 else 50.0
