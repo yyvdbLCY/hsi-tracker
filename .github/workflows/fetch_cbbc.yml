@@ -11,7 +11,7 @@ on:
 jobs:
   run-crawler:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write   # 讓 workflow 可以 commit/push 數據回 main
 
@@ -24,25 +24,34 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 安装依赖
-        run: pip install requests firebase-admin pandas
+      - name: 安装依赖 (CBBC + Options OI)
+        run: |
+          pip install requests firebase-admin pandas
+          pip install playwright
+          playwright install chromium
 
       - name: 写入 Firebase 密钥
         run: echo '${{ secrets.FIREBASE_KEY }}' > serviceAccountKey.json
 
-      - name: 执行正常爬虫 (无补单日期)
+      - name: 执行正常爬虫 - CBBC (无补单日期)
         if: github.event.inputs.backfill_date == ''
         run: python cbbc_crawler.py
 
-      - name: 执行补单爬虫 (指定日期)
+      - name: 执行补单爬虫 - CBBC (指定日期)
         if: github.event.inputs.backfill_date != ''
         run: python backfill.py ${{ github.event.inputs.backfill_date }}
+
+      - name: 执行爬虫 - HSI 期權 OI 牆位
+        run: python options_oi_crawler.py
 
       - name: Commit & push 數據回 main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # 加入 CBBC 主文件 + archive
           git add cbbc_distribution.json
+          # 加入 Options OI 主文件 + archive
+          git add options_oi_distribution.json
           if [ -d "archive" ]; then
             git add archive/
           fi
@@ -50,102 +59,7 @@ jobs:
             echo "ℹ️  數據無變化，跳過 commit"
           else
             date_str=$(date -u +'%Y-%m-%d')
-            git commit -m "chore: auto-update CBBC distribution ($date_str) [workflow run #${{ github.run_number }}]"
+            git commit -m "chore: auto-update CBBC + Options OI ($date_str) [workflow run #${{ github.run_number }}]"
             git push
             echo "✅ 已 push 數據回 main"
           fi
-
-      # 順便把 briefs/ 同步到 hsi-analyst-bot 中央大腦
-      # 這樣 cron-job.org 觸發一次, cbbc + brief 同步都做
-      - name: Sync briefs to hsi-analyst-bot (中央大腦同步)
-        env:
-          HSI_ANALYST_BOT_PAT: ${{ secrets.NEW_PAT }}
-        run: |
-          python3 << 'PYEOF'
-          import os, sys, json, base64, urllib.request, urllib.error
-
-          PAT = os.environ.get('HSI_ANALYST_BOT_PAT', '')
-          if not PAT:
-              print('⚠️  HSI_ANALYST_BOT_PAT secret 未設定, 跳過 brief sync')
-              print('   用戶需在 hsi-tracker repo 設 NEW_PAT secret')
-              sys.exit(0)
-
-          SRC = 'https://api.github.com/repos/yyvdbLCY/hsi-tracker/contents/briefs'
-          DST = 'https://api.github.com/repos/yyvdbLCY/hsi-analyst-bot/contents/briefs'
-
-          def gh(url, method='GET', payload=None):
-              req = urllib.request.Request(
-                  url, method=method,
-                  headers={
-                      'Authorization': f'token {PAT}',
-                      'Accept': 'application/vnd.github+json',
-                      'Content-Type': 'application/json',
-                  }
-              )
-              if payload:
-                  req.data = json.dumps(payload).encode()
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as r:
-                      body = r.read()
-                      return r.status, (json.loads(body) if body else {})
-              except urllib.error.HTTPError as e:
-                  try:
-                      return e.code, json.loads(e.read())
-                  except:
-                      return e.code, {}
-
-          # 1. 列出 source (hsi-tracker/briefs/)
-          status, src_files = gh(SRC)
-          if status != 200:
-              print(f'❌ 讀取 hsi-tracker/briefs/ 失敗: {status}')
-              sys.exit(0)
-          if not isinstance(src_files, list):
-              print(f'⚠️  source 不是 list, 跳過: {src_files}')
-              sys.exit(0)
-
-          # 2. 列出 dest (hsi-analyst-bot/briefs/, 可能空)
-          status, dst_files = gh(DST)
-          if status == 404:
-              dst_files = []
-          elif status != 200 or not isinstance(dst_files, list):
-              print(f'⚠️  讀取 hsi-analyst-bot/briefs/ 失敗 status={status}, 當空')
-              dst_files = []
-
-          dst_names = {f['name'] for f in dst_files}
-          print(f'Source hsi-tracker/briefs/: {len(src_files)} 個')
-          print(f'Dest hsi-analyst-bot/briefs/: {len(dst_names)} 個 (已存在)')
-
-          # 3. 找出新文件
-          new_files = [f for f in src_files if f['name'] not in dst_names]
-          print(f'新 brief: {len(new_files)} 個')
-
-          if not new_files:
-              print('✅ 沒有新 brief 需要 sync')
-              sys.exit(0)
-
-          # 4. 推送
-          success, fail = 0, 0
-          for f in new_files:
-              name = f['name']
-              # 抓 source 內容
-              status, src_file = gh(f['url'])
-              if status != 200 or 'content' not in src_file:
-                  print(f'  ❌ {name} 抓內容失敗: {status}')
-                  fail += 1
-                  continue
-              content = base64.b64decode(src_file['content'].replace('\n', '')).decode('utf-8')
-              # 推到 dest
-              payload = {
-                  'message': f'sync brief from hsi-tracker: {name}',
-                  'content': base64.b64encode(content.encode()).decode(),
-              }
-              status, resp = gh(f'{DST}/{name}', method='PUT', payload=payload)
-              if 200 <= status < 300:
-                  print(f'  ✅ {name} ({len(content)} bytes)')
-                  success += 1
-              else:
-                  print(f'  ❌ {name} status={status} resp={str(resp)[:150]}')
-                  fail += 1
-
-          print(f'\n=== 同步完成: ✅ {success} 成功, ❌ {fail} 失敗 ===')
-          PYEOF
