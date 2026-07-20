@@ -263,6 +263,97 @@ def fallback_sg_full(target_date=None):
         "distribution": distribution
     }
 
+
+def fallback_bnp_paribas(target_date=None):
+    """備援: BNP Paribas (法巴) CBBC 街貨 API
+    URL: https://www.bnppwarrant.com/tc/data/json/cbbc-band-json-all/ucode/HSI/step/15/spread/100
+    優勢: JSON API, 含 10 天歷史, 不需 Playwright
+    """
+    if target_date is None:
+        target_date = datetime.date.today()
+    sdate_param = target_date.strftime("%y%m%d")
+
+    API_URL = "https://www.bnppwarrant.com/tc/data/json/cbbc-band-json-all/ucode/HSI/step/15/spread/100"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.bnppwarrant.com/tc/cbbc/outstanding-distribution",
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+    }
+    resp = requests.get(API_URL, params={"sdate": sdate_param}, headers=headers, timeout=15)
+    resp.raise_for_status()
+    raw = resp.json()
+
+    fd = raw.get("furtherData", {})
+    hsi_last = float(fd.get("hsilast", 0))
+    data_date = target_date.isoformat()
+    sum_bull = int(round(float(fd.get("sumBull", 0))))
+    sum_bear = int(round(float(fd.get("sumBear", 0))))
+
+    # udates 陣列中, 找最接近 target_date 的日期作為實際 data_date
+    udates = fd.get("udates", [])
+    if udates and target_date.isoformat() not in udates:
+        # 找最接近且 ≤ target_date 的日期
+        for d in sorted(udates, reverse=True):
+            if d <= target_date.isoformat():
+                data_date = d
+                break
+        # 同步 HSI 跟 udates 對應
+        ulast = fd.get("ulast_his", [])
+        try:
+            idx = udates.index(data_date)
+            if idx < len(ulast):
+                hsi_last = float(ulast[idx])
+        except (ValueError, IndexError):
+            pass
+
+    # 構造 distribution
+    distribution = []
+    for item in raw.get("mainData", []):
+        try:
+            volume = int(round(float(item.get("o1", 0))))
+        except (ValueError, TypeError):
+            continue
+        if volume == 0:
+            continue
+        fr = item.get("fr")
+        to = item.get("to")
+        if fr is None or to is None:
+            continue
+        strike = (fr + to) / 2
+        distribution.append({
+            "type": "bull" if item.get("ty") == "bull" else "bear",
+            "strike": round(strike, 2),
+            "low": fr,
+            "high": to,
+            "volume": volume,
+        })
+
+    # 500 點內牛證
+    bull_500_sum = 0
+    if hsi_last > 0:
+        for d in distribution:
+            if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
+                bull_500_sum += d["volume"]
+    bull_500_corrected = int(round(bull_500_sum * 1.0))
+
+    total = sum_bull + sum_bear
+    bull_pct = round(sum_bull / total * 100, 1) if total > 0 else 50.0
+
+    return {
+        "date": data_date,
+        "hsi": hsi_last,
+        "summary": {
+            "total_bull": sum_bull,
+            "total_bear": sum_bear,
+            "bull_pct": bull_pct,
+            "bull_500": bull_500_corrected,
+        },
+        "distribution": distribution,
+        "_source": "BNP Paribas (法巴)",
+    }
+
+
 def save_data(data, archive=True):
     # 主文件
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
@@ -277,15 +368,37 @@ def save_data(data, archive=True):
 
 def main():
     today = datetime.date.today()
-    print(f"📅 开始获取 {today.isoformat()} 的牛熊证数据（全法兴渠道）...")
+    print(f"📅 开始获取 {today.isoformat()} 的牛熊证数据...")
 
+    # 主源: 法興
+    data = None
+    source = ""
     try:
         data = fallback_sg_full()
-        source = "法兴"
+        if data["summary"]["total_bull"] > 0:
+            source = "法兴"
+            print(f"✅ 法興獲取成功")
+        else:
+            print(f"⚠️ 法興返回空數據，改用 BNP Paribas 備援")
+            data = None
     except Exception as e:
-        print(f"❌ 法兴获取失败：{e}")
-        return
+        print(f"⚠️ 法興獲取失敗 ({e})，改用 BNP Paribas 備援")
 
+    # 備援: BNP Paribas
+    if data is None:
+        try:
+            data = fallback_bnp_paribas()
+            if data["summary"]["total_bull"] > 0:
+                source = "BNP Paribas (法巴)"
+                print(f"✅ BNP Paribas 備援成功")
+            else:
+                print(f"❌ BNP Paribas 也返回空數據")
+                return
+        except Exception as e:
+            print(f"❌ BNP Paribas 備援也失敗: {e}")
+            return
+
+    data["_source"] = source
     save_data(data, archive=True)
     upload_to_firestore(data)
 
