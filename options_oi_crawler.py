@@ -1,176 +1,223 @@
 """
-HSI 即月認購/認沽期權 OI 牆位爬蟲
-===================================
-目標: https://hk.warrants.com/tc/options/open-interest
+HSI 即月認購/認沽期權 OI 牆位爬蟲 (XML API 版)
+====================================================
+目標 API: https://hk.warrants.com/hk/data/chart/cbbc_oichart.cgi
+          ?ucode=HSI&sdate=YYYY-MM-DD&r_expiry=radioTM&step=N
+
+step 參數: 每方向顯示 N 個 strike,實際 strike 數 = 2*N
+  step=10  → 20 strikes  (±~7%)
+  step=20  → 40 strikes  (±~15%)
+  step=50  → 85 strikes  (±~28%, 推薦)
+  step=80+ → 101 strikes (max, 16,000-32,000)
+
+API 回傳 XML 結構:
+  <level>
+    <last>25143.05</last>     <!-- HSI 上日收市 -->
+    <max>1243</max>           <!-- 最大 OI (圖表用) -->
+    <c_oi>16029</c_oi>        <!-- 全口徑認購 OI -->
+    <p_oi>8348</p_oi>         <!-- 全口徑認沽 OI -->
+    <stime>2026-07-21 07:00:00</stime>
+    <step>
+      <type>up|down</type>     <!-- up=strike>last, down=strike<last -->
+      <strike>27000</strike>
+      <oi_call>817</oi_call>
+      <oi_put>3</oi_put>
+      <y_oi_call>801</y_oi_call>   <!-- 昨日 OI -->
+      <y_oi_put>3</y_oi_put>
+      <os_call>5.10%</os_call>     <!-- 街貨佔比 % -->
+      <os_put>0.04%</os_put>
+    </step>
+    ...
+  </level>
+
 資料流向:
-  1. Playwright 抓取 + JS 渲染
-  2. 解析表格 → strikes[] (call OI / put OI / flags)
-  3. 解析 metadata (update_time / call_pct / put_pct / last_close)
-  4. 寫入 options_oi_distribution.json (latest)
-  5. 寫入 archive/options_oi_YYYY-MM-DD.json (歷史)
-  6. 上傳到 Firebase Firestore: market/hsi_options_oi
+  1. requests 直接打 XML API (不再用 Playwright,快 3-5x)
+  2. XML 解析 → strikes[] (call OI / put OI / flags / relative position)
+  3. 寫入 options_oi_distribution.json (latest)
+  4. 寫入 archive/options_oi_YYYY-MM-DD.json (歷史)
+  5. 上傳到 Firebase Firestore: market/hsi_options_oi
 """
 import json
 import os
 import re
 import sys
-import time
 import datetime
+import time
 import firebase_admin
 from firebase_admin import credentials, firestore
+import requests
 
 # ================= 配置 =================
-TARGET_URL = "https://hk.warrants.com/tc/options/open-interest"
+# step=50 → 85 strikes (覆蓋 HSI ±28%),實務夠用且不過長
+OI_STEP = 50
+
+API_BASE = "https://hk.warrants.com/hk/data/chart/cbbc_oichart.cgi"
 OUTPUT_FILE = "options_oi_distribution.json"
 ARCHIVE_DIR = "archive"
 
-# GitHub Actions runner 上的 Playwright Chromium 路徑
-# 本地 sandbox 也是同一條路徑 (ms-playwright cache)
-CHROME_CANDIDATES = [
-    "/root/.cache/ms-playwright/chromium-1223/chrome-linux/chrome",
-    "/root/.cache/ms-playwright/chromium-1187/chrome-linux/chrome",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium-browser",
-]
+# 近價判定門檻 (用於 is_near_money flag)
+NEAR_MONEY_THRESHOLD = 500  # HSI ±500 為近價
 # ========================================
 
 
-def find_chrome():
-    for path in CHROME_CANDIDATES:
-        if os.path.exists(path):
-            return path
-    return None
+def get_credentials_dict():
+    return None  # 不需要,本檔用 serviceAccountKey.json
 
 
-def get_browser():
-    """啟動 Playwright Chromium,自動處理 sandbox 參數"""
-    from playwright.sync_api import sync_playwright
-    chrome_path = find_chrome()
-    pw = sync_playwright().start()
-    kwargs = dict(
-        headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-        ],
-    )
-    if chrome_path:
-        kwargs["executable_path"] = chrome_path
-    b = pw.chromium.launch(**kwargs)
-    return pw, b
+def fetch_oi_xml(target_date=None, step=OI_STEP):
+    """打 XML API 拿 HSI 即月 OI 數據"""
+    if target_date is None:
+        target_date = datetime.date.today()
+    sdate = target_date.strftime("%Y-%m-%d") if isinstance(target_date, datetime.date) else target_date
+
+    url = f"{API_BASE}?ucode=HSI&sdate={sdate}&r_expiry=radioTM&step={step}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://hk.warrants.com/tc/options/open-interest",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    resp = requests.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return resp.text, url
 
 
-def parse_oi(text):
-    """ '1,266[+2] 重貨區' → (1266, 2, ['重貨區']) """
-    flags = []
-    if "重貨區" in text:
-        flags.append("重貨區")
-    if "最多新增" in text:
-        flags.append("最多新增")
-    m = re.match(r"\s*([\d,]+)\s*\[([+\-]?\d+)\]", text.strip())
-    if m:
-        return int(m.group(1).replace(",", "")), int(m.group(2)), flags
-    return None, None, flags
+def parse_oi_xml(xml_text, source_url=""):
+    """
+    解析 XML → dict
+    回傳結構:
+    {
+      "last_close": 25143.05,
+      "update_time": "2026-07-21 07:00:00",
+      "total_call_oi": 16029,
+      "total_put_oi": 8348,
+      "max_oi": 1243,
+      "step": 50,
+      "strikes": [
+        {
+          "strike": 27000, "type": "up",
+          "call_oi": 817, "put_oi": 3,
+          "y_call_oi": 801, "y_put_oi": 3,
+          "call_pct": 5.10, "put_pct": 0.04,
+          "call_oi_change": 16, "put_oi_change": 0,
+          "relative_position": 1857,    # strike - last_close
+          "distance_pct": 7.39,        # 相對 HSI 距離 %
+          "is_near_money": False,
+          "call_flags": ["重貨區"],     # if os_call >= 5%
+          "put_flags": [],
+        }, ...
+      ]
+    }
+    """
+    # 抓 metadata
+    def extract(tag, cast=str, default=None):
+        m = re.search(rf"<{tag}>([^<]+)</{tag}>", xml_text)
+        if not m: return default
+        try: return cast(m.group(1))
+        except: return default
+
+    last_close = extract("last", float, 0.0)
+    max_oi = extract("max", int, 0)
+    total_call = extract("c_oi", int, 0)
+    total_put = extract("p_oi", int, 0)
+    update_time = extract("stime", str, "")
+
+    # 抓所有 <step>...</step>
+    step_blocks = re.findall(r"<step>\s*(.*?)\s*</step>", xml_text, re.DOTALL)
+
+    strikes = []
+    for block in step_blocks:
+        def b(tag, cast=str, default=None):
+            m = re.search(rf"<{tag}>([^<]+)</{tag}>", block)
+            if not m: return default
+            try: return cast(m.group(1))
+            except: return default
+
+        strike = b("strike", int)
+        if strike is None: continue
+        direction = b("type", str)  # "up" / "down"
+        call_oi = b("oi_call", int, 0) or 0
+        put_oi = b("oi_put", int, 0) or 0
+        y_call_oi = b("y_oi_call", int, 0) or 0
+        y_put_oi = b("y_oi_put", int, 0) or 0
+        # os_call/os_put 是 "5.10%" 格式,去 % 轉 float
+        def parse_pct(s):
+            if not s: return 0.0
+            return float(s.replace("%", "").strip())
+        call_pct = parse_pct(b("os_call", str, "0"))
+        put_pct = parse_pct(b("os_put", str, "0"))
+
+        # 隔日變化
+        call_oi_change = call_oi - y_call_oi if y_call_oi else 0
+        put_oi_change = put_oi - y_put_oi if y_put_oi else 0
+
+        # 計算相對位置
+        rel_pos = strike - int(last_close) if last_close else 0
+        distance_pct = round(rel_pos / last_close * 100, 2) if last_close else 0
+        is_near_money = abs(rel_pos) <= NEAR_MONEY_THRESHOLD
+
+        # 重貨區判定 (街貨 ≥ 5% 視為重貨)
+        HEAVY_THRESHOLD = 5.0
+        MOST_NEW_THRESHOLD = 200  # 隔日增加 > 200 視為「最多新增」
+        call_flags = []
+        if call_pct >= HEAVY_THRESHOLD: call_flags.append("重貨區")
+        if call_oi_change >= MOST_NEW_THRESHOLD: call_flags.append("最多新增")
+        put_flags = []
+        if put_pct >= HEAVY_THRESHOLD: put_flags.append("重貨區")
+        if put_oi_change >= MOST_NEW_THRESHOLD: put_flags.append("最多新增")
+
+        strikes.append({
+            "strike": strike,
+            "type": direction,  # up / down
+            "call_oi": call_oi,
+            "put_oi": put_oi,
+            "y_call_oi": y_call_oi,
+            "y_put_oi": y_put_oi,
+            "call_oi_change": call_oi_change,
+            "put_oi_change": put_oi_change,
+            "call_pct": call_pct,
+            "put_pct": put_pct,
+            "relative_position": rel_pos,
+            "distance_pct": distance_pct,
+            "is_near_money": is_near_money,
+            "call_flags": call_flags,
+            "put_flags": put_flags,
+        })
+
+    return {
+        "last_close": last_close,
+        "update_time": update_time,
+        "total_call_oi": total_call,
+        "total_put_oi": total_put,
+        "max_oi": max_oi,
+        "step_used": OI_STEP,
+        "source_url": source_url,
+        "strikes": strikes,
+    }
 
 
-def scrape():
-    """主爬取邏輯"""
-    pw, b = get_browser()
-    try:
-        page = b.new_page(
-            user_agent=(
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            )
-        )
-        page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=60000)
-        # 等 JS 渲染完 (hk.warrants.com 比較慢,8-10 秒穩妥)
-        page.wait_for_timeout(10000)
+def detect_edge_warning(last_close, strikes):
+    """
+    偵測 HSI 是否接近 API 範圍上下限
+    回傳 warning 字串 ('' 表示無警告)
+    """
+    if not last_close or not strikes:
+        return ""
 
-        # 一次拿全部資料,只走一次 IPC
-        raw = page.evaluate("""() => {
-            const tables = document.querySelectorAll('table');
-            if (tables.length < 1) return { error: 'no tables found' };
-            const t0 = tables[0];
-            const rows = t0.querySelectorAll('tr');
-            const data = [];
-            for (let i = 1; i < rows.length; i++) {  // skip header
-                const cells = rows[i].querySelectorAll('td');
-                if (cells.length >= 7) {
-                    data.push(Array.from(cells).map(c => c.innerText.replace(/\\s+/g, ' ').trim()));
-                }
-            }
-            const body = document.body.innerText;
-            return {
-                data,
-                update_time: (body.match(/最後更新時間\\s*[:：]?\\s*([0-9\\-:\\s]+)/) || [])[1] || '',
-                call_pct:    parseFloat((body.match(/即月認購期權街貨\\s*([0-9.]+)%/) || [])[1] || 0),
-                put_pct:     parseFloat((body.match(/即月認沽期權街貨\\s*([0-9.]+)%/) || [])[1] || 0),
-                last_close:  (body.match(/上日收市價\\s*([0-9,.]+)/) || [])[1] || '',
-            };
-        }""")
+    strikes_sorted = sorted([s["strike"] for s in strikes])
+    lowest = strikes_sorted[0]
+    highest = strikes_sorted[-1]
 
-        if "error" in raw:
-            raise RuntimeError(raw["error"])
+    # HSI 距上下限 < 1000 = 接近邊界
+    near_lower = (last_close - lowest) < 1000
+    near_upper = (highest - last_close) < 1000
 
-        if not raw.get("data"):
-            raise RuntimeError("no data rows scraped")
-
-        strikes = []
-        for cells in raw["data"]:
-            # Layout: [Call%][empty][Call OI [chg] flags][Strike][Put OI [chg]][empty][Put%]
-            call_pct = re.sub(r"[^\d.]", "", cells[0]) or "0"
-            call_oi, call_oi_chg, call_flags = parse_oi(cells[2])
-            try:
-                strike = int(cells[3].replace(",", ""))
-            except (ValueError, IndexError):
-                continue
-            put_oi, put_oi_chg, put_flags = parse_oi(cells[4])
-            put_pct = re.sub(r"[^\d.]", "", cells[6]) or "0"
-
-            strikes.append({
-                "strike": strike,
-                "call_pct": float(call_pct),
-                "call_oi": call_oi,
-                "call_oi_change": call_oi_chg,
-                "call_flags": call_flags,
-                "put_oi": put_oi,
-                "put_oi_change": put_oi_chg,
-                "put_pct": float(put_pct),
-                "put_flags": put_flags,
-            })
-
-        # 清理 update_time 尾端換行
-        update_time = raw.get("update_time", "").strip()
-
-        # 用「上日收市價的日期」當作 data date (最合理)
-        # 抓不到就用今天
-        if update_time:
-            # 格式 "2026-07-20 07:00:00" → "2026-07-20"
-            data_date = update_time.split()[0]
-        else:
-            data_date = datetime.date.today().isoformat()
-
-        try:
-            last_close = float(raw.get("last_close", "").replace(",", ""))
-        except (ValueError, TypeError):
-            last_close = 0.0
-
-        result = {
-            "date": data_date,
-            "update_time": update_time,
-            "last_close": last_close,
-            "call_pct": raw.get("call_pct", 0),
-            "put_pct": raw.get("put_pct", 0),
-            "strike_count": len(strikes),
-            "strikes": strikes,
-        }
-        return result
-    finally:
-        b.close()
-        pw.stop()
+    if near_lower and near_upper:
+        return f"⚠️ HSI ({last_close:.0f}) 接近 API 顯示範圍上下限 ({lowest}-{highest}),請小心解讀"
+    elif near_lower:
+        return f"⚠️ HSI ({last_close:.0f}) 接近下限 ({lowest}),下方 OI 牆位資料可能不完整"
+    elif near_upper:
+        return f"⚠️ HSI ({last_close:.0f}) 接近上限 ({highest}),上方 OI 牆位資料可能不完整"
+    return ""
 
 
 def upload_to_firestore(data):
@@ -216,29 +263,72 @@ def save_data(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def main():
-    today = datetime.date.today()
-    print(f"📅 開始抓取 {today.isoformat()} 的 HSI 期權 OI 牆位...")
+def build_distribution(data, call_pct, put_pct, edge_warning):
+    """包裝成對前端友善的格式"""
+    strikes = data["strikes"]
+    return {
+        "date": data["date"],
+        "update_time": data["update_time"],
+        "last_close": data["last_close"],
+        "call_pct": round(call_pct, 1),
+        "put_pct": round(put_pct, 1),
+        "strike_count": len(strikes),
+        "step_used": data.get("step_used", OI_STEP),
+        "edge_warning": edge_warning,
+        "strikes": strikes,
+    }
+
+
+def main(target_date=None):
+    """主爬取邏輯
+
+    target_date: 留空用今天,指定時格式 'YYYY-MM-DD'
+    """
+    if target_date is None:
+        target_date = datetime.date.today().strftime("%Y-%m-%d")
+
+    print(f"📅 抓取 {target_date} 的 HSI 即月期權 OI 牆位 (XML API, step={OI_STEP})...")
 
     try:
-        data = scrape()
+        xml_text, url = fetch_oi_xml(target_date=target_date, step=OI_STEP)
     except Exception as e:
-        print(f"❌ 爬取失敗: {e}")
+        print(f"❌ API 抓取失敗: {e}")
         sys.exit(1)
 
-    save_data(data)
-    upload_to_firestore(data)
+    data = parse_oi_xml(xml_text, source_url=url)
+    data["date"] = target_date
+    data["call_pct"] = data["total_call_oi"]  # placeholder,計算用
+    data["put_pct"] = data["total_put_oi"]
 
-    s = data
+    last_close = data["last_close"]
+    total_call = data["total_call_oi"]
+    total_put = data["total_put_oi"]
+    all_oi = total_call + total_put
+    call_pct = (total_call / all_oi * 100) if all_oi else 50.0
+    put_pct = (total_put / all_oi * 100) if all_oi else 50.0
+
+    edge_warning = detect_edge_warning(last_close, data["strikes"])
+
+    distribution = build_distribution(data, call_pct, put_pct, edge_warning)
+
+    save_data(distribution)
+    try:
+        upload_to_firestore(distribution)
+    except Exception as e:
+        print(f"⚠️  Firestore 失敗但本地已存: {e}")
+
+    s = distribution
     print(f"✅ 抓取完成:")
     print(f"   資料日期:    {s['date']}")
     print(f"   更新時間:    {s['update_time']}")
     print(f"   上日收市:    {s['last_close']:,.2f}")
     print(f"   認購街貨:    {s['call_pct']:.1f}%")
     print(f"   認沽街貨:    {s['put_pct']:.1f}%")
-    print(f"   行使價檔數:  {s['strike_count']}")
+    print(f"   strike 檔數: {s['strike_count']} (step={s['step_used']})")
+    print(f"   edge warning: {edge_warning or '(無)'}")
     print(f"📁 已存檔: {OUTPUT_FILE} + archive/options_oi_{s['date']}.json")
 
 
 if __name__ == "__main__":
-    main()
+    target = sys.argv[1] if len(sys.argv) > 1 else None
+    main(target_date=target)

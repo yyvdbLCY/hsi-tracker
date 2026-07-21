@@ -58,6 +58,10 @@
         .oi-table th { background: #4a5568; color: white; padding: 8px 4px; font-size: 12px; font-weight: 600; }
         .oi-table td { padding: 0; text-align: center; border-bottom: 1px solid #4a5568; color: #e2e8f0; height: 26px; }
         .oi-row-heavy td { background: rgba(229, 62, 62, 0.12); }
+        .oi-row-near td { border-top: 2px solid #48bb78; border-bottom: 2px solid #48bb78; }
+        .oi-row-near td:first-child { border-left: 2px solid #48bb78; }
+        .oi-row-near td:last-child { border-right: 2px solid #48bb78; }
+        .oi-row-hidden { display: none; }
         .oi-col-pct { width: 11%; }
         .oi-col-strike { width: 22%; font-weight: bold; color: #90cdf4; font-size: 13px; }
         .oi-cell-bar-wrap { position: relative; height: 100%; min-height: 26px; }
@@ -137,6 +141,11 @@
             </div>
             <div style="text-align: center; margin-top: 10px; font-size: 12px; color: #a0aec0;">
                 📍 上日收市: <span id="oiLastClose" style="color: #f7fafc; font-weight: bold;">--</span>
+                <span id="oiStrikeCount" style="margin-left: 12px; color: #718096;"></span>
+            </div>
+            <div id="oiEdgeWarning" style="display:none; margin: 8px 0; padding: 8px 12px; background: rgba(245, 101, 101, 0.15); border-left: 3px solid #f56565; color: #fc8181; font-size: 12px; border-radius: 4px;"></div>
+            <div style="text-align: center; margin: 6px 0 10px; font-size: 12px;">
+                <button id="oiToggleBtn" style="background: rgba(99, 179, 237, 0.15); border: 1px solid #63b3ed; color: #63b3ed; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">📖 展開全部</button>
             </div>
         </div>
         <table class="oi-table">
@@ -580,6 +589,8 @@
         const putPct = data.put_pct || 0;
         const lastClose = data.last_close || 0;
         const updateTime = data.update_time || '--';
+        const edgeWarning = data.edge_warning || '';
+        const stepUsed = data.step_used || 0;
 
         document.getElementById('oiUpdateTime').innerText =
             `更新: ${updateTime} | 收市: ${lastClose.toLocaleString()}`;
@@ -588,6 +599,19 @@
         document.getElementById('oiPutPct').innerText = `${putPct.toFixed(1)}%`;
         document.getElementById('oiCallBar').style.width = `${callPct}%`;
         document.getElementById('oiPutBar').style.width = `${putPct}%`;
+        document.getElementById('oiStrikeCount').innerText =
+            stepUsed > 0 ? `(${strikes.length} 個 strike, step=${stepUsed})` : '';
+
+        // Edge warning
+        const warnEl = document.getElementById('oiEdgeWarning');
+        if (warnEl) {
+            if (edgeWarning) {
+                warnEl.innerText = edgeWarning;
+                warnEl.style.display = 'block';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        }
 
         if (strikes.length === 0) {
             document.getElementById('oiTableBody').innerHTML =
@@ -600,13 +624,34 @@
         const maxPutOI = Math.max(...strikes.map(s => s.put_oi || 0), 1);
         const maxOI = Math.max(maxCallOI, maxPutOI);
 
+        // Smart window: 預設顯示 HSI ±1500 (約 15 個 strike),展開才顯示全部
+        const DEFAULT_WINDOW = 1500;
+        window._oiSmartWindow = DEFAULT_WINDOW;
+        window._oiExpanded = false;
+        const toggleBtn = document.getElementById('oiToggleBtn');
+        if (toggleBtn) {
+            toggleBtn.style.display = strikes.length > 20 ? 'inline-block' : 'none';
+            toggleBtn.innerText = '📖 展開全部';
+            toggleBtn.onclick = () => {
+                window._oiExpanded = !window._oiExpanded;
+                toggleBtn.innerText = window._oiExpanded ? '📕 收起重點視窗 (±1500)' : '📖 展開全部';
+                applySmartWindow();
+            };
+        }
+
         const tbody = document.getElementById('oiTableBody');
         tbody.innerHTML = '';
-        strikes.forEach(s => {
+        strikes.forEach((s, idx) => {
             const isHeavy = ((s.call_flags || []).includes('重貨區')) ||
                             ((s.put_flags || []).includes('重貨區'));
+            const isNear = !!s.is_near_money;
             const row = document.createElement('tr');
-            if (isHeavy) row.className = 'oi-row-heavy';
+            let cls = '';
+            if (isHeavy) cls += 'oi-row-heavy ';
+            if (isNear) cls += 'oi-row-near ';
+            row.className = cls.trim();
+            row.dataset.idx = idx;
+            row.dataset.rel = s.relative_position != null ? s.relative_position : (s.strike - lastClose);
 
             const callWidth = ((s.call_oi || 0) / maxOI * 100).toFixed(1);
             const putWidth = ((s.put_oi || 0) / maxOI * 100).toFixed(1);
@@ -636,6 +681,20 @@
             `;
             tbody.appendChild(row);
         });
+
+        // 套用 smart window
+        function applySmartWindow() {
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(r => {
+                const rel = Math.abs(parseInt(r.dataset.rel, 10) || 0);
+                if (window._oiExpanded || rel <= window._oiSmartWindow || r.classList.contains('oi-row-near') || r.classList.contains('oi-row-heavy')) {
+                    r.classList.remove('oi-row-hidden');
+                } else {
+                    r.classList.add('oi-row-hidden');
+                }
+            });
+        }
+        applySmartWindow();
     }
 </script>
 </body>
