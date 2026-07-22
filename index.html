@@ -591,9 +591,18 @@
         const updateTime = data.update_time || '--';
         const edgeWarning = data.edge_warning || '';
         const stepUsed = data.step_used || 0;
+        const dataFresh = data.data_fresh !== false;  // default true
+        const sourceLabel = data._source || '?';
 
-        document.getElementById('oiUpdateTime').innerText =
-            `更新: ${updateTime} | 收市: ${lastClose.toLocaleString()}`;
+        const timeEl = document.getElementById('oiUpdateTime');
+        timeEl.innerText = `更新: ${updateTime} | 收市: ${lastClose.toLocaleString()}`;
+        if (!dataFresh) {
+            timeEl.style.color = '#f6ad55';
+            timeEl.title = `資料源: ${sourceLabel} (昨日回退,今日主源 + 後備皆不可用)`;
+        } else {
+            timeEl.style.color = '';
+            timeEl.title = `資料源: ${sourceLabel}`;
+        }
         document.getElementById('oiLastClose').innerText = lastClose.toLocaleString();
         document.getElementById('oiCallPct').innerText = `${callPct.toFixed(1)}%`;
         document.getElementById('oiPutPct').innerText = `${putPct.toFixed(1)}%`;
