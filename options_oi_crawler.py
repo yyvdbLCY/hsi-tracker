@@ -154,12 +154,22 @@ def primary_hkex(target_date=None):
     if not raw_strikes:
         raise RuntimeError("HKEX options 解析結果為空")
 
-    # 4. HSI 收市取自 7desl (HKEX 沒在同個 ZIP 內提供 HSI 指數收市)
+    # 4. HSI 收市來源順序: 7desl → HKEX 期貨 settle → yfinance → median
     last_close = _fetch_hsi_close_from_7desl(target_date_dt)
+    hsi_source = "7desl"
     if last_close <= 0:
-        # 拿不到就用 strike 中位數 (避開全 0 的 strike)
+        # 拿 HKEX 期貨 SETTLE 作為 proxy (官方,差距 <300 點)
+        last_close = _fetch_hsi_close_from_hkex_futures(zip_bytes)
+        hsi_source = "HKEX 期貨 settle (proxy)"
+    if last_close <= 0:
+        # yfinance
+        last_close = _fetch_hsi_close_yfinance(target_date_dt)
+        hsi_source = "yfinance ^HSI"
+    if last_close <= 0:
+        # 最後中位數 fallback
         non_zero_strikes = sorted([s["strike"] for s in raw_strikes])
         last_close = float(non_zero_strikes[len(non_zero_strikes) // 2])
+        hsi_source = "median of strikes"
 
     # 5. 計算總 OI
     total_call_oi = sum(s["call_oi"] for s in raw_strikes)
@@ -179,6 +189,7 @@ def primary_hkex(target_date=None):
         "date": date_str,
         "update_time": update_time,
         "last_close": last_close,
+        "last_close_source": hsi_source,
         "total_call_oi": total_call_oi,
         "total_put_oi": total_put_oi,
         "call_pct": round(call_pct, 1),
@@ -274,9 +285,11 @@ def _extract_front_expiry(text):
 
 
 def _fetch_hsi_close_from_7desl(target_date):
-    """從 7desl 拿 HSI 收市 (HKEX ZIP 沒提供)
-    失敗 fallback 到 yfinance (^HSI) (可能拿到 HSI 期貨,需檢查)
-    最後 fallback 到 0 (頁面會顯示 --)
+    """從 7desl 拿 HSI 收市 (HKEX ZIP 沒提供指數)
+    來源順序:
+      1. 7desl data-hsi-index.csv (最準, T+1 上傳)
+      2. yfinance ^HSI (可能拿到 HSI 期貨,需範圍 + 變動過濾)
+      3. 回傳 0 (頁面會顯示 --)
     """
     date_str = target_date.strftime("%Y-%m-%d") if isinstance(target_date, datetime.date) else target_date
     # 1. 7desl (T+1 上傳,當日資料通常 21:30 HKT 後)
@@ -292,21 +305,51 @@ def _fetch_hsi_close_from_7desl(target_date):
                     return val
     except Exception:
         pass
-    # 2. yfinance fallback (^HSI) - 注意: yfinance 有時返回 HSI 期貨不是指數
-    # 判斷: HSI 指數歷史範圍 14k-32k, HSI 期貨範圍 14k-32k (similar)
-    # 不能用範圍過濾,但能用 5日變化 >500 來識別是期貨
+    # 2. yfinance fallback (^HSI) - 注意 1.5+ 可能返回 HSI 期貨
+    # 期貨會被識別為「今日變動過大」,但 index 的每日變動多在 ±500 以內
+    return _fetch_hsi_close_yfinance(target_date)
+
+
+def _fetch_hsi_close_yfinance(target_date):
+    """yfinance ^HSI 拿 HSI 指數
+    注意 1.5+ 版可能返回 HSI 期貨,加變動過濾 (|Δ| < 500)
+    """
     try:
         import yfinance as yf
         ticker = yf.Ticker("^HSI")
-        end_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") + datetime.timedelta(days=2)
-        start_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") - datetime.timedelta(days=3)
+        if isinstance(target_date, datetime.date) and not isinstance(target_date, datetime.datetime):
+            target_date = datetime.datetime.combine(target_date, datetime.time())
+        end_d = target_date + datetime.timedelta(days=2)
+        start_d = target_date - datetime.timedelta(days=3)
         hist = ticker.history(start=start_d.strftime("%Y-%m-%d"), end=end_d.strftime("%Y-%m-%d"))
         if hist is not None and len(hist) >= 2:
             latest = float(hist["Close"].iloc[-1])
             prev = float(hist["Close"].iloc[-2])
-            # HSI 指數 1 日變化 < 500 點; HSI 期貨有時變化 > 500 點
             if 20000 < latest < 30000 and abs(latest - prev) < 500:
                 return latest
+    except Exception:
+        pass
+    return 0.0
+
+
+def _fetch_hsi_close_from_hkex_futures(zip_bytes):
+    """從 HKEX options ZIP 拿 HSI 30 JUL 26 期貨 SETTLE 作為 HSI close proxy
+    HSI 期貨 SETTLE 是 HKEX 官方公布,跟 HSI close 差距通常 < 300 點
+    """
+    try:
+        import zipfile, io as iomod
+        with zipfile.ZipFile(iomod.BytesIO(zip_bytes)) as z:
+            # 找 HSI futures file
+            fut_files = [n for n in z.namelist() if "fut_dtl_hsi.rpt" in n and not n.endswith(".raw")]
+            if not fut_files:
+                return 0.0
+            with z.open(fut_files[0]) as f:
+                text = f.read().decode("ascii", errors="ignore")
+        # 找第一個 HSI 即月 (30 JUL 26) SETTLE
+        # 格式: HSI    30 JUL 26    ...    SETTLE  PRICE  PRICE CHANGE
+        m = re.search(r"HSI\s+30 JUL \d+\s+[\d,]+\s+[\d,]+\s+[\d,\-]+\s+[\d,]+\s+[\d,]+\s+([\d,]+)", text)
+        if m:
+            return float(m.group(1).replace(",", ""))
     except Exception:
         pass
     return 0.0
