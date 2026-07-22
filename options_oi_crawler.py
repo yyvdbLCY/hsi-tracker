@@ -58,7 +58,10 @@ except ImportError:
 # step=50 → 85 strikes (覆蓋 HSI ±28%),實務夠用且不過長
 OI_STEP = 50
 
-# 主源 (hk.warrants.com XML API)
+# 主源 1 (HKEX 港交所 - 官方權威)
+HKEX_BASE = "https://www.hkex.com.hk/eng/stat/dmstat/OI"
+
+# 主源 2 (hk.warrants.com XML API)
 API_BASE = "https://hk.warrants.com/hk/data/chart/cbbc_oichart.cgi"
 
 # 後備源 (hkiei.com iframe → 7desl.com/hkex CSV)
@@ -92,6 +95,255 @@ def fetch_oi_xml(target_date=None, step=OI_STEP):
     resp = requests.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
     return resp.text, url
+
+
+def primary_hkex(target_date=None):
+    """
+    主源: 港交所 HKEX 官方資料 (最權威)
+    URL: https://www.hkex.com.hk/eng/stat/dmstat/OI/DTOP_F_YYYYMMDD.zip
+    ZIP 內容: 多個 .rpt + .raw 檔
+      - yyyymmdd_1_dtop_f_hkcc_opt_dtl_hsi.rpt  (HSI options detail)
+      - yyyymmdd_1_dtop_f_hkcc_fut_dtl_hsi.rpt  (HSI futures)
+    報告檔名格式: REPORT DATE : DDMMMYY (e.g. 22JUL26)
+    擋區格式 (HSI options):
+      STRIKE | CALL_GROSS CALL_NET CALL_CHG CALL_TO CALL_DEAL CALL_SETTLE CALL_PRC_CHG
+            | PUT_GROSS  PUT_NET  PUT_CHG  PUT_TO  PUT_DEAL  PUT_SETTLE  PUT_PRC_CHG
+
+    T+0 (當日 20:59 HKT 後上傳)
+    """
+    if target_date is None:
+        target_date = datetime.date.today()
+    if isinstance(target_date, str):
+        target_date_dt = datetime.date.fromisoformat(target_date)
+    else:
+        target_date_dt = target_date
+    date_str = target_date_dt.strftime("%Y-%m-%d")
+    # HKEX ZIP 檔名用 MMM-YY 格式 (e.g. DTOP_F_20260722.zip)
+    zip_url = f"{HKEX_BASE}/DTOP_F_{date_str.replace('-', '')}.zip"
+    page_url = f"{HKEX_BASE}/oi_f.asp"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": page_url,
+    }
+
+    # 1. 下載 ZIP
+    try:
+        resp = requests.get(zip_url, headers=headers, timeout=20)
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code} for {zip_url}")
+        zip_bytes = resp.content
+    except Exception as e:
+        raise RuntimeError(f"HKEX ZIP 下載失敗: {e}")
+
+    # 2. 解壓
+    import zipfile, io as iomod
+    try:
+        with zipfile.ZipFile(iomod.BytesIO(zip_bytes)) as z:
+            # 找 HSI options file
+            hsi_opt_files = [n for n in z.namelist() if "opt_dtl_hsi.rpt" in n and not n.endswith(".raw")]
+            if not hsi_opt_files:
+                raise RuntimeError("ZIP 內找不到 opt_dtl_hsi.rpt")
+            with z.open(hsi_opt_files[0]) as f:
+                rpt_text = f.read().decode("ascii", errors="ignore")
+    except Exception as e:
+        raise RuntimeError(f"HKEX ZIP 解壓失敗: {e}")
+
+    # 3. 解析 options detail (raw strikes, call_oi/put_oi only)
+    raw_strikes = parse_hkex_options_rpt(rpt_text, target_date_dt)
+
+    if not raw_strikes:
+        raise RuntimeError("HKEX options 解析結果為空")
+
+    # 4. HSI 收市取自 7desl (HKEX 沒在同個 ZIP 內提供 HSI 指數收市)
+    last_close = _fetch_hsi_close_from_7desl(target_date_dt)
+    if last_close <= 0:
+        # 拿不到就用 strike 中位數猜
+        all_strikes = sorted([s["strike"] for s in raw_strikes])
+        last_close = float(all_strikes[len(all_strikes) // 2])
+
+    # 5. 計算總 OI
+    total_call_oi = sum(s["call_oi"] for s in raw_strikes)
+    total_put_oi = sum(s["put_oi"] for s in raw_strikes)
+    all_oi = total_call_oi + total_put_oi
+    call_pct = (total_call_oi / all_oi * 100) if all_oi else 50.0
+    put_pct = (total_put_oi / all_oi * 100) if all_oi else 50.0
+
+    # 6. 後處理: 加相對位置 / is_near_money / 重貨區 / 街貨% / 排序
+    strikes = finalize_hkex_strikes(raw_strikes, last_close, total_call_oi, total_put_oi)
+
+    # 7. 取到期日 (即月 = 報告中第一個 EXPIRATION DATE)
+    front_expiry = _extract_front_expiry(rpt_text)
+    update_time = f"{date_str} 21:00:00 (HKEX 官方)"
+
+    return {
+        "date": date_str,
+        "update_time": update_time,
+        "last_close": last_close,
+        "total_call_oi": total_call_oi,
+        "total_put_oi": total_put_oi,
+        "call_pct": round(call_pct, 1),
+        "put_pct": round(put_pct, 1),
+        "max_oi": max((max(s["call_oi"], s["put_oi"]) for s in strikes), default=0),
+        "step_used": 0,  # HKEX step 是固定的 (100)
+        "source_url": zip_url,
+        "contract_month": front_expiry,
+        "strikes": strikes,
+    }
+
+
+def parse_hkex_options_rpt(text, target_date):
+    """解析 HKEX options detail .rpt 檔
+    只取第一個 EXPIRATION (即月)
+    """
+    lines = text.split("\n")
+    current_expiry = None
+    first_expiry = None
+    strikes = []
+
+    for line in lines:
+        m = re.search(r"EXPIRATION DATE\s*:\s*(\S+ \S+)", line)
+        if m:
+            current_expiry = m.group(1).strip()
+            if first_expiry is None:
+                first_expiry = current_expiry
+            continue
+        # 只保留第一個 expiration 的 strike (檔案內同一個 expiration 跨多頁)
+        if first_expiry is None or current_expiry != first_expiry:
+            continue
+        # 解析 data row
+        m = re.match(r"^\s+(\d{1,3},?\d{3})\s+(.+)$", line)
+        if not m:
+            continue
+        strike = int(m.group(1).replace(",", ""))
+        fields = m.group(2).split()
+        if len(fields) < 14:
+            continue
+        # 解析 14 個欄位
+        def to_int(s):
+            return int(s.replace(",", "")) if s else 0
+        call_gross = to_int(fields[0])
+        call_net = to_int(fields[1])
+        call_chg = to_int(fields[2])
+        call_to = to_int(fields[3])
+        call_deal = to_int(fields[4])
+        call_settle = to_int(fields[5])
+        call_prc_chg = to_int(fields[6])
+        put_gross = to_int(fields[7])
+        put_net = to_int(fields[8])
+        put_chg = to_int(fields[9])
+        put_to = to_int(fields[10])
+        put_deal = to_int(fields[11])
+        put_settle = to_int(fields[12])
+        put_prc_chg = to_int(fields[13])
+
+        # 全部 0 的 (完全無 OI) 跳過,減少資料量
+        if call_gross == 0 and put_gross == 0:
+            continue
+
+        strikes.append({
+            "strike": strike,
+            "type": "up",
+            "call_oi": call_gross,
+            "put_oi": put_gross,
+            "y_call_oi": max(0, call_gross - call_chg),
+            "y_put_oi": max(0, put_gross - put_chg),
+            "call_oi_change": call_chg,
+            "put_oi_change": put_chg,
+            "call_settle": call_settle,
+            "put_settle": put_settle,
+            "call_pct": 0.0,
+            "put_pct": 0.0,
+            "call_iv": 0.0,
+            "put_iv": 0.0,
+            "relative_position": 0,
+            "distance_pct": 0,
+            "is_near_money": False,
+            "call_flags": [],
+            "put_flags": [],
+        })
+
+    return strikes
+
+
+def _extract_front_expiry(text):
+    """從 HKEX options 檔案抓第一個 EXPIRATION DATE"""
+    m = re.search(r"EXPIRATION DATE\s*:\s*(\S+ \S+)", text)
+    return m.group(1).strip() if m else ""
+
+
+def _fetch_hsi_close_from_7desl(target_date):
+    """從 7desl 拿 HSI 收市 (HKEX ZIP 沒提供)
+    失敗 fallback 到 yfinance (通用備援)
+    """
+    date_str = target_date.strftime("%Y-%m-%d") if isinstance(target_date, datetime.date) else target_date
+    # 1. 7desl
+    try:
+        url = f"{BACKUP_BASE}/{date_str}/data-hsi-index.csv"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://7desl.com/hkex"}, timeout=8)
+        if resp.status_code == 200:
+            reader = csv.DictReader(io.StringIO(resp.text))
+            row = next(reader, None)
+            if row and "afternoon_closing" in row:
+                val = float(row["afternoon_closing"])
+                if val > 0:
+                    return val
+    except Exception:
+        pass
+    # 2. yfinance fallback
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("^HSI")
+        end_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") + datetime.timedelta(days=1)
+        start_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") - datetime.timedelta(days=1)
+        hist = ticker.history(start=start_d.strftime("%Y-%m-%d"), end=end_d.strftime("%Y-%m-%d"))
+        if hist is not None and not hist.empty:
+            return float(hist["Close"].iloc[-1])
+    except Exception:
+        pass
+    return 0.0
+
+
+def finalize_hkex_strikes(strikes, last_close, total_call_oi, total_put_oi):
+    """HKEX strikes 後處理: 加相對位置 / is_near_money / 重貨 / 街貨%"""
+    HEAVY_THRESHOLD = 5.0
+    MOST_NEW_THRESHOLD = 200
+    out = []
+    for s in strikes:
+        rel_pos = s["strike"] - int(last_close)
+        distance_pct = round(rel_pos / last_close * 100, 2) if last_close else 0
+        is_near_money = abs(rel_pos) <= NEAR_MONEY_THRESHOLD
+        call_pct = (s["call_oi"] / total_call_oi * 100) if total_call_oi else 0
+        put_pct = (s["put_oi"] / total_put_oi * 100) if total_put_oi else 0
+        call_flags = []
+        if call_pct >= HEAVY_THRESHOLD: call_flags.append("重貨區")
+        if s["call_oi_change"] >= MOST_NEW_THRESHOLD: call_flags.append("最多新增")
+        put_flags = []
+        if put_pct >= HEAVY_THRESHOLD: put_flags.append("重貨區")
+        if s["put_oi_change"] >= MOST_NEW_THRESHOLD: put_flags.append("最多新增")
+        out.append({
+            "strike": s["strike"],
+            "type": "up" if rel_pos > 0 else "down",
+            "call_oi": s["call_oi"],
+            "put_oi": s["put_oi"],
+            "y_call_oi": s["y_call_oi"],
+            "y_put_oi": s["y_put_oi"],
+            "call_oi_change": s["call_oi_change"],
+            "put_oi_change": s["put_oi_change"],
+            "call_settle": s["call_settle"],
+            "put_settle": s["put_settle"],
+            "call_pct": round(call_pct, 2),
+            "put_pct": round(put_pct, 2),
+            "call_iv": 0.0,
+            "put_iv": 0.0,
+            "relative_position": rel_pos,
+            "distance_pct": distance_pct,
+            "is_near_money": is_near_money,
+            "call_flags": call_flags,
+            "put_flags": put_flags,
+        })
+    # 排序: 上面最遠 → ... → 近 → ... → 下面最遠 (跟其他源一致)
+    out.sort(key=lambda x: -x["relative_position"])
+    return out
 
 
 def parse_oi_xml(xml_text, source_url=""):
@@ -502,26 +754,41 @@ def main(target_date=None):
     data = None
     source = None
 
-    # === 主源: hk.warrants.com XML API ===
-    print(f"   🎯 主源: hk.warrants.com XML API (step={OI_STEP})")
+    # === 主源 1: 港交所 HKEX 官方資料 ===
+    print(f"   🎯 主源 1: HKEX 港交所 (最權威, T+0 21:00 HKT 上傳)")
     try:
-        xml_text, url = fetch_oi_xml(target_date=target_date, step=OI_STEP)
-        candidate = parse_oi_xml(xml_text, source_url=url)
-        candidate["date"] = target_date
-        # 驗證: HSI > 0 + 至少 10 個 strike + 總 OI > 0 (避免拿到全 0 的空資料)
-        total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
-        if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+        candidate = primary_hkex(target_date=target_date)
+        total_oi = candidate.get("total_call_oi", 0) + candidate.get("total_put_oi", 0)
+        if candidate.get("last_close", 0) > 0 and len(candidate.get("strikes", [])) >= 10 and total_oi > 0:
             candidate["data_fresh"] = True
             data = candidate
-            source = "hk.warrants.com"
+            source = "HKEX 港交所 (官方)"
         else:
-            print(f"   ⚠️ 主源回傳資料不足 (last={candidate['last_close']}, strikes={len(candidate['strikes'])}, total_oi={total_oi})")
+            print(f"   ⚠️ HKEX 回傳資料不足 (last={candidate.get('last_close')}, strikes={len(candidate.get('strikes', []))}, total_oi={total_oi})")
     except Exception as e:
-        print(f"   ⚠️ 主源失敗: {e}")
+        print(f"   ⚠️ HKEX 失敗: {str(e)[:120]}")
 
-    # === 後備: 7desl.com/hkex (hkiei.com) ===
+    # === 主源 2: hk.warrants.com XML API ===
     if data is None:
-        print(f"   🔄 後備源: 7desl.com/hkex (hkiei.com) - 101 strikes")
+        print(f"   🔄 主源 2: hk.warrants.com XML API (step={OI_STEP})")
+        try:
+            xml_text, url = fetch_oi_xml(target_date=target_date, step=OI_STEP)
+            candidate = parse_oi_xml(xml_text, source_url=url)
+            candidate["date"] = target_date
+            # 驗證: HSI > 0 + 至少 10 個 strike + 總 OI > 0 (避免拿到全 0 的空資料)
+            total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
+            if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+                candidate["data_fresh"] = True
+                data = candidate
+                source = "hk.warrants.com"
+            else:
+                print(f"   ⚠️ 主源 2 回傳資料不足 (last={candidate['last_close']}, strikes={len(candidate['strikes'])}, total_oi={total_oi})")
+        except Exception as e:
+            print(f"   ⚠️ 主源 2 失敗: {e}")
+
+    # === 後備 3: 7desl.com/hkex (hkiei.com) ===
+    if data is None:
+        print(f"   🔄 後備 3: 7desl.com/hkex (hkiei.com) - 101 strikes")
         try:
             candidate = fallback_hkiei_7desl(target_date=target_date)
             total_oi = (candidate.get("total_call_oi", 0) + candidate.get("total_put_oi", 0)) if candidate else 0
@@ -530,37 +797,46 @@ def main(target_date=None):
                 data = candidate
                 source = "7desl.com (hkiei.com)"
             else:
-                print(f"   ⚠️ 後備源回傳資料不足 (last={candidate.get('last_close') if candidate else 'N/A'}, strikes={len(candidate['strikes']) if candidate else 0}, total_oi={total_oi})")
+                print(f"   ⚠️ 後備 3 回傳資料不足 (last={candidate.get('last_close') if candidate else 'N/A'}, strikes={len(candidate['strikes']) if candidate else 0}, total_oi={total_oi})")
         except Exception as e:
-            print(f"   ⚠️ 後備源失敗: {e}")
+            print(f"   ⚠️ 後備 3 失敗: {e}")
 
     if data is None:
-        # 兩源今日資料不可用,回退取昨日 (兩源都是 T+1)
+        # 兩源今日資料不可用,回退取昨日 (都是 T+1, 週五六自動跳)
         if isinstance(target_date, str):
             tdate = datetime.date.fromisoformat(target_date)
         else:
             tdate = target_date
         yesterday = (tdate - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-        # 跳過週末 (週五/六/日→ 走週五/五/三)
-        # 但為簡化,週六日自動順延到週五
-        weekday = tdate.weekday()  # 0=週一
+        weekday = tdate.weekday()
         if weekday == 5:  # 週六
             yesterday = (tdate - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
         elif weekday == 6:  # 週日
             yesterday = (tdate - datetime.timedelta(days=2)).strftime("%Y-%m-%d")
-        # 週一到週五: 昨日是週一到週四,應該都有資料
         print(f"   🔄 今日 {target_date} 資料不可用,試昨日 {yesterday} ...")
+        # 昨日: HKEX → hk.warrants → 7desl
         try:
-            xml_text, url = fetch_oi_xml(target_date=yesterday, step=OI_STEP)
-            candidate = parse_oi_xml(xml_text, source_url=url)
-            candidate["date"] = yesterday  # 標記為實際資料日期
-            candidate["data_fresh"] = False  # stale flag
-            total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
-            if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+            candidate = primary_hkex(target_date=yesterday)
+            total_oi = candidate.get("total_call_oi", 0) + candidate.get("total_put_oi", 0)
+            if candidate.get("last_close", 0) > 0 and len(candidate.get("strikes", [])) >= 10 and total_oi > 0:
+                candidate["date"] = yesterday
+                candidate["data_fresh"] = False
                 data = candidate
-                source = f"hk.warrants.com (昨日 {yesterday} 資料)"
+                source = f"HKEX 港交所 (昨日 {yesterday} 資料)"
         except Exception as e:
-            print(f"   ⚠️ 昨日主源失敗: {e}")
+            print(f"   ⚠️ 昨日 HKEX 失敗: {str(e)[:80]}")
+        if data is None:
+            try:
+                xml_text, url = fetch_oi_xml(target_date=yesterday, step=OI_STEP)
+                candidate = parse_oi_xml(xml_text, source_url=url)
+                candidate["date"] = yesterday
+                candidate["data_fresh"] = False
+                total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
+                if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+                    data = candidate
+                    source = f"hk.warrants.com (昨日 {yesterday} 資料)"
+            except Exception as e:
+                print(f"   ⚠️ 昨日主源 2 失敗: {e}")
         if data is None:
             try:
                 candidate = fallback_hkiei_7desl(target_date=yesterday)
@@ -575,7 +851,7 @@ def main(target_date=None):
                 print(f"   ⚠️ 昨日後備失敗: {e}")
 
     if data is None:
-        print(f"❌ 主源 + 後備 + 昨日回退都失敗,無法取得 {target_date} 資料")
+        print(f"❌ HKEX + hk.warrants + 7desl + 昨日回退都失敗,無法取得 {target_date} 資料")
         sys.exit(1)
 
     print(f"   ✅ 使用來源: {source}")
