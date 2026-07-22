@@ -415,6 +415,11 @@ def upload_to_firestore(data):
     if not _HAS_FIREBASE:
         print("⚠️ firebase_admin 未安裝,略過上傳 (本地測試)")
         return
+    # 驗證: total_oi 為 0 的空資料不上傳 (避免重複上次 7/22 全 0 事件)
+    total_oi = data.get("total_call_oi", 0) + data.get("total_put_oi", 0)
+    if total_oi == 0:
+        print(f"⚠️ total_oi=0,略過上傳 (避免 Firestore 存全 0 空資料)")
+        return
     if not firebase_admin._apps:
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
@@ -434,6 +439,13 @@ def upload_to_firestore(data):
         if not updated:
             data_list.append(data)
             data_list.sort(key=lambda x: x.get("date", ""))
+
+        # 順便清掉舊的全 0 記錄 (以防之前上傳過)
+        before = len(data_list)
+        data_list = [d for d in data_list
+                     if (d.get("total_call_oi", 0) + d.get("total_put_oi", 0)) > 0]
+        if len(data_list) < before:
+            print(f"   🧹 清掉 {before - len(data_list)} 筆全 0 舊記錄")
 
         # 只保留最近 90 天
         if len(data_list) > 90:
