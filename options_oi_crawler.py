@@ -468,6 +468,7 @@ def build_distribution(data, call_pct, put_pct, edge_warning):
         "strike_count": len(strikes),
         "step_used": data.get("step_used", OI_STEP),
         "edge_warning": edge_warning,
+        "data_fresh": data.get("data_fresh", True),
         "strikes": strikes,
     }
 
