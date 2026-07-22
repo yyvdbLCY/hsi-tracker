@@ -492,30 +492,74 @@ def main(target_date=None):
         xml_text, url = fetch_oi_xml(target_date=target_date, step=OI_STEP)
         candidate = parse_oi_xml(xml_text, source_url=url)
         candidate["date"] = target_date
-        # 驗證: 至少要有 10 個 strike + HSI > 0
-        if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10:
+        # 驗證: HSI > 0 + 至少 10 個 strike + 總 OI > 0 (避免拿到全 0 的空資料)
+        total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
+        if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+            candidate["data_fresh"] = True
             data = candidate
             source = "hk.warrants.com"
         else:
-            print(f"   ⚠️ 主源回傳資料不足 (last={candidate['last_close']}, strikes={len(candidate['strikes'])})")
+            print(f"   ⚠️ 主源回傳資料不足 (last={candidate['last_close']}, strikes={len(candidate['strikes'])}, total_oi={total_oi})")
     except Exception as e:
         print(f"   ⚠️ 主源失敗: {e}")
 
     # === 後備: 7desl.com/hkex (hkiei.com) ===
     if data is None:
-        print(f"   🔄 後備源: 7desl.com/hkex (hkiei.com) - 160 strikes")
+        print(f"   🔄 後備源: 7desl.com/hkex (hkiei.com) - 101 strikes")
         try:
             candidate = fallback_hkiei_7desl(target_date=target_date)
-            if candidate and candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10:
+            total_oi = (candidate.get("total_call_oi", 0) + candidate.get("total_put_oi", 0)) if candidate else 0
+            if candidate and candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+                candidate["data_fresh"] = True
                 data = candidate
                 source = "7desl.com (hkiei.com)"
             else:
-                print(f"   ⚠️ 後備源回傳資料不足")
+                print(f"   ⚠️ 後備源回傳資料不足 (last={candidate.get('last_close') if candidate else 'N/A'}, strikes={len(candidate['strikes']) if candidate else 0}, total_oi={total_oi})")
         except Exception as e:
             print(f"   ⚠️ 後備源失敗: {e}")
 
     if data is None:
-        print(f"❌ 主源 + 後備都失敗,無法取得 {target_date} 資料")
+        # 兩源今日資料不可用,回退取昨日 (兩源都是 T+1)
+        if isinstance(target_date, str):
+            tdate = datetime.date.fromisoformat(target_date)
+        else:
+            tdate = target_date
+        yesterday = (tdate - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        # 跳過週末 (週五/六/日→ 走週五/五/三)
+        # 但為簡化,週六日自動順延到週五
+        weekday = tdate.weekday()  # 0=週一
+        if weekday == 5:  # 週六
+            yesterday = (tdate - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        elif weekday == 6:  # 週日
+            yesterday = (tdate - datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+        # 週一到週五: 昨日是週一到週四,應該都有資料
+        print(f"   🔄 今日 {target_date} 資料不可用,試昨日 {yesterday} ...")
+        try:
+            xml_text, url = fetch_oi_xml(target_date=yesterday, step=OI_STEP)
+            candidate = parse_oi_xml(xml_text, source_url=url)
+            candidate["date"] = yesterday  # 標記為實際資料日期
+            candidate["data_fresh"] = False  # stale flag
+            total_oi = candidate["total_call_oi"] + candidate["total_put_oi"]
+            if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+                data = candidate
+                source = f"hk.warrants.com (昨日 {yesterday} 資料)"
+        except Exception as e:
+            print(f"   ⚠️ 昨日主源失敗: {e}")
+        if data is None:
+            try:
+                candidate = fallback_hkiei_7desl(target_date=yesterday)
+                if candidate:
+                    candidate["date"] = yesterday
+                    candidate["data_fresh"] = False
+                total_oi = (candidate.get("total_call_oi", 0) + candidate.get("total_put_oi", 0)) if candidate else 0
+                if candidate and candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10 and total_oi > 0:
+                    data = candidate
+                    source = f"7desl.com (昨日 {yesterday} 資料)"
+            except Exception as e:
+                print(f"   ⚠️ 昨日後備失敗: {e}")
+
+    if data is None:
+        print(f"❌ 主源 + 後備 + 昨日回退都失敗,無法取得 {target_date} 資料")
         sys.exit(1)
 
     print(f"   ✅ 使用來源: {source}")
