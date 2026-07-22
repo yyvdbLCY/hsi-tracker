@@ -43,15 +43,28 @@ import re
 import sys
 import datetime
 import time
-import firebase_admin
-from firebase_admin import credentials, firestore
+import csv
+import io
 import requests
+
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+    _HAS_FIREBASE = True
+except ImportError:
+    _HAS_FIREBASE = False
 
 # ================= 配置 =================
 # step=50 → 85 strikes (覆蓋 HSI ±28%),實務夠用且不過長
 OI_STEP = 50
 
+# 主源 (hk.warrants.com XML API)
 API_BASE = "https://hk.warrants.com/hk/data/chart/cbbc_oichart.cgi"
+
+# 後備源 (hkiei.com iframe → 7desl.com/hkex CSV)
+# 160 strikes (16,000-32,000), T+0 (當日日結後上傳)
+BACKUP_BASE = "https://7desl.com/data"
+
 OUTPUT_FILE = "options_oi_distribution.json"
 ARCHIVE_DIR = "archive"
 
@@ -220,8 +233,188 @@ def detect_edge_warning(last_close, strikes):
     return ""
 
 
+def fallback_hkiei_7desl(target_date=None):
+    """
+    後備源: hkiei.com (iframe 跳到 7desl.com/hkex)
+    資料源 CSV 列表:
+      {date}/data-hsi-index.csv       - HSI 指數 (morning/afternoon/prev/change)
+      {date}/hsi-options-months.csv   - 合约月份列表
+      {date}/hsi-options-months-{MMM-YY}.csv  - 該月 OI 資料 (160 strikes)
+      {date}/data-hsi-oi.csv          - 合约 OI 總結
+      {date}/data-hsi-futures.csv     - 期貨資料
+
+    回傳與主源相同結構的 dict,或 None (失敗)
+    """
+    if target_date is None:
+        target_date = datetime.date.today()
+    if isinstance(target_date, datetime.date):
+        date_str = target_date.strftime("%Y-%m-%d")
+    else:
+        date_str = target_date
+
+    base = f"{BACKUP_BASE}/{date_str}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Referer": "https://hkiei.com/hsioptiondata/",
+    }
+
+    def fetch(path):
+        url = f"{base}/{path}"
+        try:
+            r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code == 200:
+                return r
+            print(f"   ⚠️ {path}: HTTP {r.status_code}")
+            return None
+        except Exception as e:
+            print(f"   ⚠️ {path}: {e}")
+            return None
+
+    # 1. 拿 HSI 收市
+    r = fetch("data-hsi-index.csv")
+    if not r: return None
+    reader = csv.DictReader(io.StringIO(r.text))
+    hsi_row = next(reader, None)
+    if not hsi_row: return None
+    try:
+        last_close = float(hsi_row["afternoon_closing"])
+    except (ValueError, KeyError):
+        print(f"   ⚠️ 無法取 afternoon_closing: {r.text[:100]}")
+        return None
+
+    # 2. 拿合约月份 → 用第一個 (即月)
+    r = fetch("hsi-options-months.csv")
+    if not r: return None
+    months = [m.strip() for m in r.text.strip().split("\n") if m.strip()]
+    if not months:
+        print("   ⚠️ 合约月份列表為空")
+        return None
+    front_month = months[0]  # 第一個 = 即月
+
+    # 3. 拿即月 OI CSV
+    r = fetch(f"hsi-options-months-{front_month}.csv")
+    if not r: return None
+
+    # CSV 結構 (25 columns):
+    # Call (12): 開市,高,低,收市,價位增減,IV,成交增減,上日成交,成交,未平倉增減,上日未平倉,未平倉
+    # Strike (1)
+    # Put  (12): 未平倉,上日未平倉,未平倉增減,成交,上日成交,成交增減,IV,價位增減,收市,低,高,開市
+    rows = list(csv.reader(io.StringIO(r.text)))
+    if len(rows) < 2:
+        print("   ⚠️ OI CSV 無資料")
+        return None
+
+    # 跳過 header (第一行)
+    raw_strikes = []
+    for row in rows[1:]:
+        if len(row) < 25: continue
+        try:
+            strike = int(row[12])
+            call_oi = int(row[11]) if row[11] else 0
+            y_call_oi = int(row[10]) if row[10] else 0
+            put_oi = int(row[13]) if row[13] else 0
+            y_put_oi = int(row[14]) if row[14] else 0
+            call_iv = float(row[5]) if row[5] else 0
+            put_iv = float(row[19]) if row[19] else 0
+            call_oi_change = call_oi - y_call_oi
+            put_oi_change = put_oi - y_put_oi
+            raw_strikes.append({
+                "strike": strike,
+                "call_oi": call_oi,
+                "put_oi": put_oi,
+                "y_call_oi": y_call_oi,
+                "y_put_oi": y_put_oi,
+                "call_oi_change": call_oi_change,
+                "put_oi_change": put_oi_change,
+                "call_iv": call_iv,
+                "put_iv": put_iv,
+            })
+        except (ValueError, IndexError):
+            continue
+
+    if not raw_strikes:
+        print("   ⚠️ 無法解析 OI CSV")
+        return None
+
+    total_call_oi = sum(s["call_oi"] for s in raw_strikes)
+    total_put_oi = sum(s["put_oi"] for s in raw_strikes)
+
+    # 重貨區判定
+    HEAVY_THRESHOLD = 5.0
+    MOST_NEW_THRESHOLD = 200
+
+    strikes = []
+    for s in raw_strikes:
+        # 街貨 % = 該 strike OI / 全 call (or put) OI * 100
+        call_pct = (s["call_oi"] / total_call_oi * 100) if total_call_oi else 0
+        put_pct = (s["put_oi"] / total_put_oi * 100) if total_put_oi else 0
+        rel_pos = s["strike"] - int(last_close)
+        distance_pct = round(rel_pos / last_close * 100, 2) if last_close else 0
+        is_near_money = abs(rel_pos) <= NEAR_MONEY_THRESHOLD
+        call_flags = []
+        if call_pct >= HEAVY_THRESHOLD: call_flags.append("重貨區")
+        if s["call_oi_change"] >= MOST_NEW_THRESHOLD: call_flags.append("最多新增")
+        put_flags = []
+        if put_pct >= HEAVY_THRESHOLD: put_flags.append("重貨區")
+        if s["put_oi_change"] >= MOST_NEW_THRESHOLD: put_flags.append("最多新增")
+        direction = "up" if s["strike"] > last_close else "down"
+        strikes.append({
+            "strike": s["strike"],
+            "type": direction,
+            "call_oi": s["call_oi"],
+            "put_oi": s["put_oi"],
+            "y_call_oi": s["y_call_oi"],
+            "y_put_oi": s["y_put_oi"],
+            "call_oi_change": s["call_oi_change"],
+            "put_oi_change": s["put_oi_change"],
+            "call_pct": round(call_pct, 2),
+            "put_pct": round(put_pct, 2),
+            "call_iv": s["call_iv"],
+            "put_iv": s["put_iv"],
+            "relative_position": rel_pos,
+            "distance_pct": distance_pct,
+            "is_near_money": is_near_money,
+            "call_flags": call_flags,
+            "put_flags": put_flags,
+        })
+
+    # 按相對位置由遠到近再到遠負 → 上面最遠 → ... → 近 → ... → 下面最遠
+    # 跟 hk.warrants.com 顯示順序一致
+    strikes.sort(key=lambda x: -x["relative_position"])
+
+    # update_time  - 拿 OI summary 拿成交日期
+    r_oi = fetch("data-hsi-oi.csv")
+    update_time = f"{date_str} 16:00:00"  # default
+    if r_oi:
+        try:
+            reader = csv.DictReader(io.StringIO(r_oi.text))
+            for row in reader:
+                if row.get("Symbol") == "HSI" and row.get("Series", "").endswith(front_month):
+                    # 結算日 = 收盘后
+                    update_time = f"{date_str} 16:00:00 (settlement)"
+                    break
+        except Exception:
+            pass
+
+    return {
+        "date": date_str,
+        "update_time": update_time,
+        "last_close": last_close,
+        "total_call_oi": total_call_oi,
+        "total_put_oi": total_put_oi,
+        "max_oi": max((max(s["call_oi"], s["put_oi"]) for s in strikes), default=0),
+        "step_used": 0,  # 7desl 固定 160 strikes,不用 step 概念
+        "source_url": f"{base}/hsi-options-months-{front_month}.csv",
+        "contract_month": front_month,
+        "strikes": strikes,
+    }
+
+
 def upload_to_firestore(data):
     """上傳到 Firestore: market/hsi_options_oi"""
+    if not _HAS_FIREBASE:
+        print("⚠️ firebase_admin 未安裝,略過上傳 (本地測試)")
+        return
     if not firebase_admin._apps:
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
@@ -283,20 +476,50 @@ def main(target_date=None):
     """主爬取邏輯
 
     target_date: 留空用今天,指定時格式 'YYYY-MM-DD'
+    抓取順序: hk.warrants.com (主) → 7desl.com/hkex (後備)
     """
     if target_date is None:
         target_date = datetime.date.today().strftime("%Y-%m-%d")
 
-    print(f"📅 抓取 {target_date} 的 HSI 即月期權 OI 牆位 (XML API, step={OI_STEP})...")
+    print(f"📅 抓取 {target_date} 的 HSI 即月期權 OI 牆位...")
 
+    data = None
+    source = None
+
+    # === 主源: hk.warrants.com XML API ===
+    print(f"   🎯 主源: hk.warrants.com XML API (step={OI_STEP})")
     try:
         xml_text, url = fetch_oi_xml(target_date=target_date, step=OI_STEP)
+        candidate = parse_oi_xml(xml_text, source_url=url)
+        candidate["date"] = target_date
+        # 驗證: 至少要有 10 個 strike + HSI > 0
+        if candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10:
+            data = candidate
+            source = "hk.warrants.com"
+        else:
+            print(f"   ⚠️ 主源回傳資料不足 (last={candidate['last_close']}, strikes={len(candidate['strikes'])})")
     except Exception as e:
-        print(f"❌ API 抓取失敗: {e}")
+        print(f"   ⚠️ 主源失敗: {e}")
+
+    # === 後備: 7desl.com/hkex (hkiei.com) ===
+    if data is None:
+        print(f"   🔄 後備源: 7desl.com/hkex (hkiei.com) - 160 strikes")
+        try:
+            candidate = fallback_hkiei_7desl(target_date=target_date)
+            if candidate and candidate["last_close"] > 0 and len(candidate["strikes"]) >= 10:
+                data = candidate
+                source = "7desl.com (hkiei.com)"
+            else:
+                print(f"   ⚠️ 後備源回傳資料不足")
+        except Exception as e:
+            print(f"   ⚠️ 後備源失敗: {e}")
+
+    if data is None:
+        print(f"❌ 主源 + 後備都失敗,無法取得 {target_date} 資料")
         sys.exit(1)
 
-    data = parse_oi_xml(xml_text, source_url=url)
-    data["date"] = target_date
+    print(f"   ✅ 使用來源: {source}")
+
     data["call_pct"] = data["total_call_oi"]  # placeholder,計算用
     data["put_pct"] = data["total_put_oi"]
 
@@ -310,6 +533,7 @@ def main(target_date=None):
     edge_warning = detect_edge_warning(last_close, data["strikes"])
 
     distribution = build_distribution(data, call_pct, put_pct, edge_warning)
+    distribution["_source"] = source  # 記錄實際使用來源
 
     save_data(distribution)
     try:
@@ -319,12 +543,17 @@ def main(target_date=None):
 
     s = distribution
     print(f"✅ 抓取完成:")
+    print(f"   來源:        {s.get('_source', '?')}")
     print(f"   資料日期:    {s['date']}")
     print(f"   更新時間:    {s['update_time']}")
     print(f"   上日收市:    {s['last_close']:,.2f}")
     print(f"   認購街貨:    {s['call_pct']:.1f}%")
     print(f"   認沽街貨:    {s['put_pct']:.1f}%")
-    print(f"   strike 檔數: {s['strike_count']} (step={s['step_used']})")
+    print(f"   strike 檔數: {s['strike_count']}")
+    if s.get('step_used', 0) > 0:
+        print(f"   step:        {s['step_used']}")
+    if s.get('contract_month'):
+        print(f"   合約月:      {s['contract_month']}")
     print(f"   edge warning: {edge_warning or '(無)'}")
     print(f"📁 已存檔: {OUTPUT_FILE} + archive/options_oi_{s['date']}.json")
 
