@@ -157,9 +157,9 @@ def primary_hkex(target_date=None):
     # 4. HSI 收市取自 7desl (HKEX 沒在同個 ZIP 內提供 HSI 指數收市)
     last_close = _fetch_hsi_close_from_7desl(target_date_dt)
     if last_close <= 0:
-        # 拿不到就用 strike 中位數猜
-        all_strikes = sorted([s["strike"] for s in raw_strikes])
-        last_close = float(all_strikes[len(all_strikes) // 2])
+        # 拿不到就用 strike 中位數 (避開全 0 的 strike)
+        non_zero_strikes = sorted([s["strike"] for s in raw_strikes])
+        last_close = float(non_zero_strikes[len(non_zero_strikes) // 2])
 
     # 5. 計算總 OI
     total_call_oi = sum(s["call_oi"] for s in raw_strikes)
@@ -266,17 +266,20 @@ def parse_hkex_options_rpt(text, target_date):
 
 
 def _extract_front_expiry(text):
-    """從 HKEX options 檔案抓第一個 EXPIRATION DATE"""
-    m = re.search(r"EXPIRATION DATE\s*:\s*(\S+ \S+)", text)
+    """從 HKEX options 檔案抓第一個 EXPIRATION DATE
+    原本 \S+ \S+ 只抓兩個詞,改用 .+ 才抓得到 '30 JUL 26'
+    """
+    m = re.search(r"EXPIRATION DATE\s*:\s*(.+?)\s*$", text, re.MULTILINE)
     return m.group(1).strip() if m else ""
 
 
 def _fetch_hsi_close_from_7desl(target_date):
     """從 7desl 拿 HSI 收市 (HKEX ZIP 沒提供)
-    失敗 fallback 到 yfinance (通用備援)
+    失敗 fallback 到 yfinance (^HSI) (可能拿到 HSI 期貨,需檢查)
+    最後 fallback 到 0 (頁面會顯示 --)
     """
     date_str = target_date.strftime("%Y-%m-%d") if isinstance(target_date, datetime.date) else target_date
-    # 1. 7desl
+    # 1. 7desl (T+1 上傳,當日資料通常 21:30 HKT 後)
     try:
         url = f"{BACKUP_BASE}/{date_str}/data-hsi-index.csv"
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://7desl.com/hkex"}, timeout=8)
@@ -285,19 +288,25 @@ def _fetch_hsi_close_from_7desl(target_date):
             row = next(reader, None)
             if row and "afternoon_closing" in row:
                 val = float(row["afternoon_closing"])
-                if val > 0:
+                if 20000 < val < 30000:
                     return val
     except Exception:
         pass
-    # 2. yfinance fallback
+    # 2. yfinance fallback (^HSI) - 注意: yfinance 有時返回 HSI 期貨不是指數
+    # 判斷: HSI 指數歷史範圍 14k-32k, HSI 期貨範圍 14k-32k (similar)
+    # 不能用範圍過濾,但能用 5日變化 >500 來識別是期貨
     try:
         import yfinance as yf
         ticker = yf.Ticker("^HSI")
-        end_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") + datetime.timedelta(days=1)
-        start_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") - datetime.timedelta(days=1)
+        end_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") + datetime.timedelta(days=2)
+        start_d = datetime.datetime.strptime(date_str, "%Y-%m-%d") - datetime.timedelta(days=3)
         hist = ticker.history(start=start_d.strftime("%Y-%m-%d"), end=end_d.strftime("%Y-%m-%d"))
-        if hist is not None and not hist.empty:
-            return float(hist["Close"].iloc[-1])
+        if hist is not None and len(hist) >= 2:
+            latest = float(hist["Close"].iloc[-1])
+            prev = float(hist["Close"].iloc[-2])
+            # HSI 指數 1 日變化 < 500 點; HSI 期貨有時變化 > 500 點
+            if 20000 < latest < 30000 and abs(latest - prev) < 500:
+                return latest
     except Exception:
         pass
     return 0.0
