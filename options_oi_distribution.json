@@ -10,7 +10,7 @@
   "strike_count": 101,
   "step_used": 0,
   "edge_warning": "",
-  "data_fresh": true,
+  "data_fresh": false,
   "strikes": [
     {
       "strike": 32000,
@@ -2154,5 +2154,5 @@
       "put_flags": []
     }
   ],
-  "_source": "HKEX 港交所 (官方)"
+  "_source": "HKEX 港交所 (昨日 2026-07-30 資料)"
 }
