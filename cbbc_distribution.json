@@ -2,11 +2,11 @@
   "date": "2026-08-03",
   "hsi": 26009.4,
   "summary": {
-    "total_bull": 5029,
-    "total_bear": 5023,
-    "bull_pct": 50.0,
-    "bull_500": 246,
-    "bear_500": 1265
+    "total_bull": 7606,
+    "total_bear": 8825,
+    "bull_pct": 46.3,
+    "bull_500": 306,
+    "bear_500": 1578
   },
   "distribution": [
     {
@@ -14,126 +14,126 @@
       "strike": 23949.5,
       "low": 23900,
       "high": 23999,
-      "volume": 31
+      "volume": 76
     },
     {
       "type": "bull",
       "strike": 24049.5,
       "low": 24000,
       "high": 24099,
-      "volume": 26
+      "volume": 33
     },
     {
       "type": "bull",
       "strike": 24149.5,
       "low": 24100,
       "high": 24199,
-      "volume": 33
+      "volume": 166
     },
     {
       "type": "bull",
       "strike": 24249.5,
       "low": 24200,
       "high": 24299,
-      "volume": 166
+      "volume": 189
     },
     {
       "type": "bull",
       "strike": 24349.5,
       "low": 24300,
       "high": 24399,
-      "volume": 36
+      "volume": 39
     },
     {
       "type": "bull",
       "strike": 24449.5,
       "low": 24400,
       "high": 24499,
-      "volume": 10
+      "volume": 12
     },
     {
       "type": "bull",
       "strike": 24549.5,
       "low": 24500,
       "high": 24599,
-      "volume": 70
+      "volume": 92
     },
     {
       "type": "bull",
       "strike": 24649.5,
       "low": 24600,
       "high": 24699,
-      "volume": 26
+      "volume": 57
     },
     {
       "type": "bull",
       "strike": 24749.5,
       "low": 24700,
       "high": 24799,
-      "volume": 50
+      "volume": 57
     },
     {
       "type": "bull",
       "strike": 24849.5,
       "low": 24800,
       "high": 24899,
-      "volume": 30
+      "volume": 36
     },
     {
       "type": "bull",
       "strike": 24949.5,
       "low": 24900,
       "high": 24999,
-      "volume": 54
+      "volume": 77
     },
     {
       "type": "bull",
       "strike": 25049.5,
       "low": 25000,
       "high": 25099,
-      "volume": 115
+      "volume": 156
     },
     {
       "type": "bull",
       "strike": 25149.5,
       "low": 25100,
       "high": 25199,
-      "volume": 31
+      "volume": 33
     },
     {
       "type": "bull",
       "strike": 25249.5,
       "low": 25200,
       "high": 25299,
-      "volume": 157
+      "volume": 272
     },
     {
       "type": "bull",
       "strike": 25349.5,
       "low": 25300,
       "high": 25399,
-      "volume": 158
+      "volume": 189
     },
     {
       "type": "bull",
       "strike": 25449.5,
       "low": 25400,
       "high": 25499,
-      "volume": 25
+      "volume": 26
     },
     {
       "type": "bull",
       "strike": 25549.5,
       "low": 25500,
       "high": 25599,
-      "volume": 86
+      "volume": 95
     },
     {
       "type": "bull",
       "strike": 25649.5,
       "low": 25600,
       "high": 25699,
-      "volume": 104
+      "volume": 146
     },
     {
       "type": "bull",
@@ -147,147 +147,147 @@
       "strike": 25849.5,
       "low": 25800,
       "high": 25899,
-      "volume": 42
+      "volume": 51
     },
     {
       "type": "bear",
       "strike": 26149.5,
       "low": 26100,
       "high": 26199,
-      "volume": 216
+      "volume": 226
     },
     {
       "type": "bear",
       "strike": 26249.5,
       "low": 26200,
       "high": 26299,
-      "volume": 353
+      "volume": 442
     },
     {
       "type": "bear",
       "strike": 26349.5,
       "low": 26300,
       "high": 26399,
-      "volume": 396
+      "volume": 542
     },
     {
       "type": "bear",
       "strike": 26449.5,
       "low": 26400,
       "high": 26499,
-      "volume": 300
+      "volume": 368
     },
     {
       "type": "bear",
       "strike": 26549.5,
       "low": 26500,
       "high": 26599,
-      "volume": 463
+      "volume": 631
     },
     {
       "type": "bear",
       "strike": 26649.5,
       "low": 26600,
       "high": 26699,
-      "volume": 157
+      "volume": 186
     },
     {
       "type": "bear",
       "strike": 26749.5,
       "low": 26700,
       "high": 26799,
-      "volume": 74
+      "volume": 130
     },
     {
       "type": "bear",
       "strike": 26849.5,
       "low": 26800,
       "high": 26899,
-      "volume": 184
+      "volume": 263
     },
     {
       "type": "bear",
       "strike": 26949.5,
       "low": 26900,
       "high": 26999,
-      "volume": 69
+      "volume": 141
     },
     {
       "type": "bear",
       "strike": 27049.5,
       "low": 27000,
       "high": 27099,
-      "volume": 172
+      "volume": 476
     },
     {
       "type": "bear",
       "strike": 27149.5,
       "low": 27100,
       "high": 27199,
-      "volume": 26
+      "volume": 140
     },
     {
       "type": "bear",
       "strike": 27249.5,
       "low": 27200,
       "high": 27299,
-      "volume": 64
+      "volume": 78
     },
     {
       "type": "bear",
       "strike": 27349.5,
       "low": 27300,
       "high": 27399,
-      "volume": 18
+      "volume": 125
     },
     {
       "type": "bear",
       "strike": 27449.5,
       "low": 27400,
       "high": 27499,
-      "volume": 20
+      "volume": 145
     },
     {
       "type": "bear",
       "strike": 27549.5,
       "low": 27500,
       "high": 27599,
-      "volume": 19
+      "volume": 99
     },
     {
       "type": "bear",
       "strike": 27649.5,
       "low": 27600,
       "high": 27699,
-      "volume": 9
+      "volume": 15
     },
     {
       "type": "bear",
       "strike": 27749.5,
       "low": 27700,
       "high": 27799,
-      "volume": 12
+      "volume": 24
     },
     {
       "type": "bear",
       "strike": 27849.5,
       "low": 27800,
       "high": 27899,
-      "volume": 3
+      "volume": 5
     },
     {
       "type": "bear",
       "strike": 27949.5,
       "low": 27900,
       "high": 27999,
-      "volume": 2
+      "volume": 79
     },
     {
       "type": "bear",
       "strike": 28049.5,
       "low": 28000,
       "high": 28099,
-      "volume": 31
+      "volume": 73
     }
   ],
   "_source": "法兴"
