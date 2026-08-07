@@ -187,6 +187,8 @@ def fetch_and_parse_hkex(target_date: datetime.date, hsi_last: float = None):
 
         bull_500_corrected = int(round(bull_500_sum * CORRECTION_FACTOR))
         bear_500_corrected = int(round(bear_500_sum * CORRECTION_FACTOR))
+        bull_1000_corrected = int(round(bull_1000_sum * CORRECTION_FACTOR))
+        bear_1000_corrected = int(round(bear_1000_sum * CORRECTION_FACTOR))
 
         result = {
             "date": target_date.isoformat(),
@@ -268,6 +270,8 @@ def fallback_sg_full(target_date=None):
     # 與 hkex 數據源保持一致 (CORRECTION_FACTOR = 1.0)
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
+    bull_1000_corrected = int(round(bull_1000_sum * 1.0))
+    bear_1000_corrected = int(round(bear_1000_sum * 1.0))
 
     total = sum_bull + sum_bear
     bull_pct = round(sum_bull / total * 100, 1) if total > 0 else 50.0
@@ -370,6 +374,8 @@ def fallback_bnp_paribas(target_date=None):
                 bear_1000_sum += d["volume"]
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
+    bull_1000_corrected = int(round(bull_1000_sum * 1.0))
+    bear_1000_corrected = int(round(bear_1000_sum * 1.0))
 
     total = sum_bull + sum_bear
     bull_pct = round(sum_bull / total * 100, 1) if total > 0 else 50.0
