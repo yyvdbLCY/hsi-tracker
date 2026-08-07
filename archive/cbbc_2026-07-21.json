@@ -6,7 +6,9 @@
     "total_bear": 6047,
     "bull_pct": 51.3,
     "bull_500": 350,
-    "bear_500": 716
+    "bear_500": 716,
+    "bull_1000": 1072,
+    "bear_1000": 1535
   },
   "distribution": [
     {

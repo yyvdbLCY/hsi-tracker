@@ -1,0 +1,55 @@
+name: Backfill 街貨背馳率 (近價 1000 內)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill-1000:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 安装依赖
+        run: pip install firebase-admin
+
+      - name: 写入 Firebase 密钥
+        run: echo '${{ secrets.FIREBASE_KEY }}' > serviceAccountKey.json
+
+      - name: 跑 backfill (archive + Firestore)
+        run: python backfill_bull_1000.py --days 30
+
+      - name: 提交 archive 變更
+        run: |
+          git config user.name "Mavis-Bot"
+          git config user.email "Mavis@MiniMax.ai"
+          git add archive/
+          if git diff --cached --quiet; then
+            echo "ℹ️  沒 archive 變更需要提交"
+          else
+            git commit -m "backfill: 補近價 ±1000 牛熊證張數 (背馳率指標用)"
+            git push
+          fi
+
+      - name: Sheets 同步
+        if: always()
+        continue-on-error: true
+        env:
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: |
+          if [ -n "$GOOGLE_SHEETS_CREDENTIALS" ]; then
+            pip install gspread google-auth -q
+            python sheets_backup.py
+          else
+            echo "⚠️  GOOGLE_SHEETS_CREDENTIALS 沒設, 跳過 Sheets"
+          fi
