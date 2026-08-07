@@ -31,8 +31,10 @@ def upload_to_firestore(data):
         "bull": s["bull_pct"],                     # 牛证比例
         "bull_amount": s["total_bull"],            # 牛证张数
         "bear_amount": s["total_bear"],            # 熊证张数
-        "bull_500_amount": s.get("bull_500", 0),   # 500点内重货牛证
-        "bear_500_amount": s.get("bear_500", 0),   # 500点内重货熊证
+        "bull_500_amount": s.get("bull_500", 0),    # 500点内重货牛证
+        "bear_500_amount": s.get("bear_500", 0),    # 500点内重货熊证
+        "bull_1000_amount": s.get("bull_1000", 0),  # 1000点内重货牛证
+        "bear_1000_amount": s.get("bear_1000", 0),  # 1000点内重货熊证
     }
 
     try:
@@ -195,6 +197,8 @@ def fetch_and_parse_hkex(target_date: datetime.date, hsi_last: float = None):
                 "bull_pct": bull_pct,
                 "bull_500": bull_500_corrected,
                 "bear_500": bear_500_corrected,
+                "bull_1000": bull_1000_corrected,
+                "bear_1000": bear_1000_corrected,
             },
             "distribution": distribution
         }
@@ -246,16 +250,21 @@ def fallback_sg_full(target_date=None):
             "volume": volume
         })
 
-    # 500点内重货牛证：累加所有 strike 在 [hsi-500, hsi] 區間的牛證 volume
+    # 500/1000点内重货牛证 + 熊证
     bull_500_sum = 0
-    # 500点内重货熊证：累加所有 strike 在 [hsi, hsi+500] 區間的熊證 volume
     bear_500_sum = 0
+    bull_1000_sum = 0
+    bear_1000_sum = 0
     if hsi_last > 0:
         for d in distribution:
             if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
                 bull_500_sum += d["volume"]
             if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 500:
                 bear_500_sum += d["volume"]
+            if d["type"] == "bull" and d["strike"] >= hsi_last - 1000 and d["strike"] <= hsi_last:
+                bull_1000_sum += d["volume"]
+            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 1000:
+                bear_1000_sum += d["volume"]
     # 與 hkex 數據源保持一致 (CORRECTION_FACTOR = 1.0)
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
@@ -272,6 +281,8 @@ def fallback_sg_full(target_date=None):
             "bull_pct": bull_pct,
             "bull_500": bull_500_corrected,
             "bear_500": bear_500_corrected,
+            "bull_1000": bull_1000_corrected,
+            "bear_1000": bear_1000_corrected,
         },
         "distribution": distribution
     }
@@ -342,15 +353,21 @@ def fallback_bnp_paribas(target_date=None):
             "volume": volume,
         })
 
-    # 500 點內牛證 + 熊證
+    # 500/1000 點內牛證 + 熊證
     bull_500_sum = 0
     bear_500_sum = 0
+    bull_1000_sum = 0
+    bear_1000_sum = 0
     if hsi_last > 0:
         for d in distribution:
             if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
                 bull_500_sum += d["volume"]
             if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 500:
                 bear_500_sum += d["volume"]
+            if d["type"] == "bull" and d["strike"] >= hsi_last - 1000 and d["strike"] <= hsi_last:
+                bull_1000_sum += d["volume"]
+            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 1000:
+                bear_1000_sum += d["volume"]
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
 
@@ -366,6 +383,8 @@ def fallback_bnp_paribas(target_date=None):
             "bull_pct": bull_pct,
             "bull_500": bull_500_corrected,
             "bear_500": bear_500_corrected,
+            "bull_1000": bull_1000_corrected,
+            "bear_1000": bear_1000_corrected,
         },
         "distribution": distribution,
         "_source": "BNP Paribas (法巴)",

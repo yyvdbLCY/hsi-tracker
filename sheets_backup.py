@@ -100,7 +100,7 @@ def load_all_data():
 
 def cbbc_to_summary_rows(records):
     """CBBC Summary tab: 1 row per day"""
-    headers = ["date", "hsi", "bull_pct", "bull_amount", "bear_amount", "bull_500", "bear_500"]
+    headers = ["date", "hsi", "bull_pct", "bull_amount", "bear_amount", "bull_500", "bear_500", "bull_1000", "bear_1000"]
     rows = [headers]
     for r in records:
         s = r.get("summary", {})
@@ -112,6 +112,8 @@ def cbbc_to_summary_rows(records):
             s.get("total_bear", ""),
             s.get("bull_500", ""),
             s.get("bear_500", ""),
+            s.get("bull_1000", ""),
+            s.get("bear_1000", ""),
         ])
     return rows
 

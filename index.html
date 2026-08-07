@@ -23,6 +23,10 @@
             position: relative; height: 380px; width: 100%; margin-bottom: 20px;
             background: #1e293b; border-radius: 8px; padding: 10px 5px 5px 5px;
         }
+        .badge-neutral { background: #4a5568; color: white; }
+        .badge-warn { background: #e53e3e; color: white; font-weight: bold; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        }
         .data-panel { background: #1e293b; padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid #4a5568; }
         .panel-title { font-size: 15px; font-weight: bold; color: #90cdf4; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 6px; overflow: hidden; font-size: 13px; }
@@ -95,11 +99,20 @@
     <h1>📊 恆指牛熊街貨量化觀測系統V3.4</h1>
     <div id="nextGannDisplay" style="text-align: right; font-size: 13px; color: #90cdf4; font-weight: bold; margin-bottom: 8px; padding-right: 5px;">🌌 下個江恩窗口: --</div>
     <div class="chart-container"><canvas id="interactiveChart"></canvas></div>
+    <div id="divergenceBadges" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 8px 0 4px; padding: 6px; background: rgba(45, 55, 72, 0.6); border-radius: 6px; font-size: 12px;">
+        <span id="bullDivBadge" style="padding: 4px 10px; background: #4a5568; color: white; border-radius: 4px;">🐂 牛證背馳: <strong>--</strong></span>
+        <span id="bearDivBadge" style="padding: 4px 10px; background: #4a5568; color: white; border-radius: 4px;">🐻 熊證背馳: <strong>--</strong></span>
+        <span id="hsiChgBadge" style="padding: 4px 10px; background: #4a5568; color: white; border-radius: 4px;">📉 HSI 日變: <strong>--</strong></span>
+        <span id="expandingBadge" style="padding: 4px 10px; background: #e53e3e; color: white; font-weight: bold; border-radius: 4px; animation: pulse 1.5s infinite; display: none;">⚡ 連續擴大</span>
+    </div>
     <div class="slider-container">
         <span>📅 顯示最近</span>
         <input type="range" id="dayRangeSlider" min="7" max="999" value="30" oninput="window.updateDayRange(this.value)">
         <span id="dayRangeLabel">30</span>
         <span>天</span>
+    </div>
+    <div class="chart-container" style="height: 140px; margin-top: 8px;">
+        <canvas id="divergenceChart"></canvas>
     </div>
     <div class="data-panel">
         <div class="panel-title">
@@ -377,6 +390,219 @@
             window.chartInstance.options.scales.yAxisAmount.max = Math.max(...amounts) * 4;
         }
         window.chartInstance.update();
+
+        // 順便更新背馳率副圖 + 徽章
+        if (window.divergenceRates) {
+            updateDivergenceDisplay(globalIndices);
+        }
+    }
+
+    // ===== 牛熊證背馳率 (街貨背馳率) =====
+    // 公式: 背馳率 = Δ街貨張數 / ΔHSI點數
+    // 街貨張數: 近價 1000 點內 (bull_1000 / bear_1000)
+    // Δ: 今日 - 昨日
+    // 負值大 = 散戶逆勢加注 (警)
+    function computeDivergenceRates(data) {
+        const rates = [];
+        for (let i = 0; i < data.length; i++) {
+            if (i === 0 || !data[i-1] || !data[i]) {
+                rates.push({ bull: null, bear: null, hsi_change: null, bull_chg: null, bear_chg: null });
+                continue;
+            }
+            const today = data[i];
+            const yest = data[i-1];
+            const dHsi = (today.hsi || 0) - (yest.hsi || 0);
+            const dBull = (today.bull_1000_amount || 0) - (yest.bull_1000_amount || 0);
+            const dBear = (today.bear_1000_amount || 0) - (yest.bear_1000_amount || 0);
+            if (dHsi === 0) {
+                rates.push({ bull: null, bear: null, hsi_change: 0, bull_chg: dBull, bear_chg: dBear });
+            } else {
+                rates.push({
+                    bull: dBull / dHsi,
+                    bear: dBear / dHsi,
+                    hsi_change: dHsi,
+                    bull_chg: dBull,
+                    bear_chg: dBear,
+                });
+            }
+        }
+        return rates;
+    }
+
+    // 偵測「連續 N 天擴大」(同方向值越來越負 = 警)
+    function detectExpandingStreak(rates, key, minStreak = 3) {
+        let streak = 0;
+        let direction = null;
+        for (let i = rates.length - 1; i > 0; i--) {
+            const today = rates[i][key];
+            const yest = rates[i-1][key];
+            if (today == null || yest == null) break;
+            // 第一天判斷方向 (負/正)
+            if (direction === null) {
+                direction = today < 0 ? 'negative' : (today > 0 ? 'positive' : null);
+            }
+            // 同方向 + 數值擴大 (絕對值變大)
+            if (direction === 'negative' && today < yest) {
+                streak++;
+            } else if (direction === 'positive' && today > yest) {
+                streak++;
+            } else {
+                break;
+            }
+        }
+        return { streak, direction };
+    }
+
+    // 顏色深度: 根據絕對值
+    function divColor(value) {
+        if (value == null) return 'rgba(160, 174, 192, 0.3)';
+        const abs = Math.abs(value);
+        if (abs < 5) return value < 0 ? 'rgba(252, 129, 129, 0.4)' : 'rgba(72, 187, 120, 0.4)';
+        if (abs < 15) return value < 0 ? 'rgba(252, 129, 129, 0.7)' : 'rgba(72, 187, 120, 0.7)';
+        return value < 0 ? 'rgba(252, 129, 129, 1.0)' : 'rgba(72, 187, 120, 1.0)';
+    }
+
+    // 初始化背馳率副圖
+    function initDivergenceChart() {
+        const canvas = document.getElementById('divergenceChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (window.divergenceChartInstance) window.divergenceChartInstance.destroy();
+        window.divergenceChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '牛證背馳率',
+                        data: [],
+                        borderColor: '#fc8181',
+                        backgroundColor: 'rgba(252, 129, 129, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: ctx => {
+                            const v = ctx.raw;
+                            return divColor(v);
+                        },
+                        tension: 0.1,
+                    },
+                    {
+                        label: '熊證背馳率',
+                        data: [],
+                        borderColor: '#48bb78',
+                        backgroundColor: 'rgba(72, 187, 120, 0.2)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: ctx => {
+                            const v = ctx.raw;
+                            return divColor(v);
+                        },
+                        tension: 0.1,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e2e8f0', font: { size: 11 } },
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const v = context.parsed.y;
+                                if (v == null) return `${context.dataset.label}: --`;
+                                return `${context.dataset.label}: ${v.toFixed(2)}`;
+                            },
+                            afterLabel: function(context) {
+                                const idx = context.dataIndex;
+                                const rate = window.divergenceRates && window.divergenceRates[window._lastGlobalIndices[idx]];
+                                if (!rate) return '';
+                                const parts = [];
+                                if (rate.hsi_change != null) parts.push(`HSI 日變: ${rate.hsi_change > 0 ? '+' : ''}${rate.hsi_change.toFixed(0)}`);
+                                if (rate.bull_chg != null) parts.push(`牛 1000 內日變: ${rate.bull_chg > 0 ? '+' : ''}${rate.bull_chg.toFixed(0)}`);
+                                if (rate.bear_chg != null) parts.push(`熊 1000 內日變: ${rate.bear_chg > 0 ? '+' : ''}${rate.bear_chg.toFixed(0)}`);
+                                return parts.join('\n');
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: '背馳率', color: '#a0aec0', font: { size: 10 } } },
+                },
+            },
+        });
+    }
+
+    // 更新背馳率副圖 + 徽章
+    function updateDivergenceDisplay(globalIndices) {
+        if (!window.divergenceChartInstance || !window.divergenceRates) return;
+        window._lastGlobalIndices = globalIndices;
+        const slicedRates = globalIndices.map(i => window.divergenceRates[i]);
+        const slicedLabels = globalIndices.map(i => {
+            const item = window.marketData[i];
+            return item ? formatToShortDate(item.date) : '';
+        });
+        window.divergenceChartInstance.data.labels = slicedLabels;
+        window.divergenceChartInstance.data.datasets[0].data = slicedRates.map(r => r ? r.bull : null);
+        window.divergenceChartInstance.data.datasets[1].data = slicedRates.map(r => r ? r.bear : null);
+        window.divergenceChartInstance.update();
+
+        // 徽章: 用最後一天
+        const lastRate = window.divergenceRates[window.divergenceRates.length - 1];
+        const lastItem = window.marketData[window.marketData.length - 1];
+        const bullBadge = document.getElementById('bullDivBadge');
+        const bearBadge = document.getElementById('bearDivBadge');
+        const hsiBadge = document.getElementById('hsiChgBadge');
+        const expandingBadge = document.getElementById('expandingBadge');
+
+        if (lastRate && lastItem) {
+            // 牛證背馳
+            if (lastRate.bull != null) {
+                const v = lastRate.bull;
+                const sign = v > 0 ? '+' : '';
+                bullBadge.innerHTML = `🐂 牛證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
+                bullBadge.style.background = divColor(v);
+                if (v < 0) bullBadge.style.color = 'white';
+                else if (v > 0) bullBadge.style.color = 'white';
+            } else {
+                bullBadge.innerHTML = `🐂 牛證背馳: <strong>--</strong>`;
+            }
+            // 熊證背馳
+            if (lastRate.bear != null) {
+                const v = lastRate.bear;
+                const sign = v > 0 ? '+' : '';
+                bearBadge.innerHTML = `🐻 熊證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
+                bearBadge.style.background = divColor(v);
+                bearBadge.style.color = 'white';
+            } else {
+                bearBadge.innerHTML = `🐻 熊證背馳: <strong>--</strong>`;
+            }
+            // HSI 日變
+            if (lastRate.hsi_change != null && lastRate.hsi_change !== 0) {
+                const v = lastRate.hsi_change;
+                const sign = v > 0 ? '+' : '';
+                hsiBadge.innerHTML = `📉 HSI 日變: <strong>${sign}${v.toFixed(0)}</strong>`;
+                hsiBadge.style.background = v < 0 ? 'rgba(252, 129, 129, 0.5)' : 'rgba(72, 187, 120, 0.5)';
+                hsiBadge.style.color = 'white';
+            } else {
+                hsiBadge.innerHTML = `📉 HSI 日變: <strong>--</strong>`;
+            }
+            // 連續 3 天擴大警示
+            const bullStreak = detectExpandingStreak(window.divergenceRates, 'bull', 3);
+            const bearStreak = detectExpandingStreak(window.divergenceRates, 'bear', 3);
+            if (bullStreak.streak >= 3 || bearStreak.streak >= 3) {
+                const which = bullStreak.streak >= 3 ? '牛' : '熊';
+                const dir = (bullStreak.streak >= 3 ? bullStreak : bearStreak).direction;
+                expandingBadge.innerHTML = `⚡ ${which}證連續 ${Math.max(bullStreak.streak, bearStreak.streak)} 日${dir === 'negative' ? '負向' : '正向'}擴大 (警)`;
+                expandingBadge.style.display = 'inline-block';
+            } else {
+                expandingBadge.style.display = 'none';
+            }
+        }
     }
 
     function initChart() {
@@ -539,11 +765,16 @@
                 window.displayDays = parseInt(slider.value);
                 if (label) label.innerText = window.displayDays >= 999 ? '全部' : window.displayDays;
             }
+            // 計算背馳率 + 初始化副圖
+            window.divergenceRates = computeDivergenceRates(window.marketData);
+            if (!window.divergenceChartInstance) initDivergenceChart();
             // 順便載入期權 OI 資料
             loadOptionsData();
         });
         document.getElementById('refreshBtn').addEventListener('click', () => {
-            loadCloudData();
+            loadCloudData().then(() => {
+                window.divergenceRates = computeDivergenceRates(window.marketData);
+            });
             loadOptionsData();
         });
         document.getElementById('toggleTableBtn').addEventListener('click', window.toggleTableDisplay);
