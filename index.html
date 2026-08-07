@@ -402,11 +402,14 @@
     // 街貨張數: 近價 1000 點內 (bull_1000 / bear_1000)
     // Δ: 今日 - 昨日
     // 負值大 = 散戶逆勢加注 (警)
+    // 門檻: |ΔHSI| < 50 點視為「平盤」, 背馳率無意義, 改回 null
+    //       (e.g. 7/21 HSI 只跌 1.38 點, 公式會給 ±600+ 失真)
+    const HSI_FLAT_THRESHOLD = 50;
     function computeDivergenceRates(data) {
         const rates = [];
         for (let i = 0; i < data.length; i++) {
             if (i === 0 || !data[i-1] || !data[i]) {
-                rates.push({ bull: null, bear: null, hsi_change: null, bull_chg: null, bear_chg: null });
+                rates.push({ bull: null, bear: null, hsi_change: null, bull_chg: null, bear_chg: null, flat: false });
                 continue;
             }
             const today = data[i];
@@ -414,8 +417,9 @@
             const dHsi = (today.hsi || 0) - (yest.hsi || 0);
             const dBull = (today.bull_1000_amount || 0) - (yest.bull_1000_amount || 0);
             const dBear = (today.bear_1000_amount || 0) - (yest.bear_1000_amount || 0);
-            if (dHsi === 0) {
-                rates.push({ bull: null, bear: null, hsi_change: 0, bull_chg: dBull, bear_chg: dBear });
+            const flat = Math.abs(dHsi) < HSI_FLAT_THRESHOLD;
+            if (dHsi === 0 || flat) {
+                rates.push({ bull: null, bear: null, hsi_change: dHsi, bull_chg: dBull, bear_chg: dBear, flat });
             } else {
                 rates.push({
                     bull: dBull / dHsi,
@@ -520,6 +524,7 @@
                                 const idx = context.dataIndex;
                                 const rate = window.divergenceRates && window.divergenceRates[window._lastGlobalIndices[idx]];
                                 if (!rate) return '';
+                                if (rate.flat) return '⚠️ HSI 變化 < 50 點, 背馳率無意義 (平盤)';
                                 const parts = [];
                                 if (rate.hsi_change != null) parts.push(`HSI 日變: ${rate.hsi_change > 0 ? '+' : ''}${rate.hsi_change.toFixed(0)}`);
                                 if (rate.bull_chg != null) parts.push(`牛 1000 內日變: ${rate.bull_chg > 0 ? '+' : ''}${rate.bull_chg.toFixed(0)}`);
@@ -561,7 +566,11 @@
 
         if (lastRate && lastItem) {
             // 牛證背馳
-            if (lastRate.bull != null) {
+            if (lastRate.flat) {
+                bullBadge.innerHTML = `🐂 牛證背馳: <strong>平盤</strong>`;
+                bullBadge.style.background = '#718096';
+                bullBadge.style.color = 'white';
+            } else if (lastRate.bull != null) {
                 const v = lastRate.bull;
                 const sign = v > 0 ? '+' : '';
                 bullBadge.innerHTML = `🐂 牛證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
@@ -572,7 +581,11 @@
                 bullBadge.innerHTML = `🐂 牛證背馳: <strong>--</strong>`;
             }
             // 熊證背馳
-            if (lastRate.bear != null) {
+            if (lastRate.flat) {
+                bearBadge.innerHTML = `🐻 熊證背馳: <strong>平盤</strong>`;
+                bearBadge.style.background = '#718096';
+                bearBadge.style.color = 'white';
+            } else if (lastRate.bear != null) {
                 const v = lastRate.bear;
                 const sign = v > 0 ? '+' : '';
                 bearBadge.innerHTML = `🐻 熊證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
