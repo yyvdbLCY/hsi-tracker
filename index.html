@@ -402,9 +402,10 @@
     // 街貨張數: 近價 1000 點內 (bull_1000 / bear_1000)
     // Δ: 今日 - 昨日
     // 負值大 = 散戶逆勢加注 (警)
-    // 門檻: |ΔHSI| < 50 點視為「平盤」, 背馳率無意義, 改回 null
+    // 門檻: |ΔHSI| < 30 點視為「平盤」, 背馳率無意義, 改回 null
     //       (e.g. 7/21 HSI 只跌 1.38 點, 公式會給 ±600+ 失真)
-    const HSI_FLAT_THRESHOLD = 50;
+    //       (8/13 HSI 跌 43.66 點, 30 門檻可保留訊號)
+    const HSI_FLAT_THRESHOLD = 30;
     function computeDivergenceRates(data) {
         const rates = [];
         for (let i = 0; i < data.length; i++) {
