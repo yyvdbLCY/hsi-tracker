@@ -397,77 +397,131 @@
         }
     }
 
-    // ===== 牛熊證背馳率 (街貨背馳率) =====
-    // 公式: 背馳率 = Δ街貨張數 / ΔHSI點數
-    // 街貨張數: 近價 1000 點內 (bull_1000 / bear_1000)
+    // ===== 散戶行為指數 (Retail Behavior Index, RBI) =====
+    // 公式: 街貨相對變化率 = Δ街貨 / 街貨_yest * 100%
+    // 街貨: 近價 1000 點內 (bull_1000 / bear_1000)
     // Δ: 今日 - 昨日
-    // 負值大 = 散戶逆勢加注 (警)
-    // 門檻: |ΔHSI| < 30 點視為「平盤」, 背馳率無意義, 改回 null
-    //       (e.g. 7/21 HSI 只跌 1.38 點, 公式會給 ±600+ 失真)
-    //       (8/13 HSI 跌 43.66 點, 30 門檻可保留訊號)
+    //
+    // 方向性解讀 (跟 HSI 方向對比):
+    //   順勢 (健康)    : HSI 漲+牛加, HSI 跌+牛減, HSI 漲+熊減, HSI 跌+熊加
+    //   逆勢加碼 (警)  : HSI 跌+牛加 (接刀), HSI 漲+熊加 (接空)
+    //   逆勢減碼 (中性): HSI 漲+牛減 (獲利), HSI 跌+熊減 (止損)
+    //
+    // 顏色映射:
+    //   順勢 → 綠 (健康)
+    //   逆勢加碼 → 紅 (警)
+    //   逆勢減碼 → 黃 (中性, 散戶認賠)
+    //   平盤 → 灰
+    //
+    // 門檻: |ΔHSI| < 30 點視為「平盤」, RBI 設 0, 標記 flat:true
     const HSI_FLAT_THRESHOLD = 30;
+    function classifyDirection(dHsi, dChg, certType) {
+        // certType: 'bull' 或 'bear'
+        // 牛: 漲+加 = 順勢, 漲+減 = 逆勢減碼, 跌+加 = 逆勢加碼, 跌+減 = 順勢
+        // 熊: 反向 (熊對 HSI 跌有利)
+        if (certType === 'bull') {
+            if (dHsi > 0 && dChg > 0) return 'trend';          // 漲+加 (健康)
+            if (dHsi < 0 && dChg < 0) return 'trend';          // 跌+減 (恐慌止損, 健康)
+            if (dHsi < 0 && dChg > 0) return 'counter_add';    // 跌+加 (接刀, 警)
+            if (dHsi > 0 && dChg < 0) return 'counter_exit';   // 漲+減 (獲利了結, 中性)
+        } else {  // bear
+            if (dHsi < 0 && dChg > 0) return 'trend';          // 跌+加 (健康)
+            if (dHsi > 0 && dChg < 0) return 'trend';          // 漲+減 (健康)
+            if (dHsi > 0 && dChg > 0) return 'counter_add';    // 漲+加 (接空, 警)
+            if (dHsi < 0 && dChg < 0) return 'counter_exit';   // 跌+減 (止損, 中性)
+        }
+        return 'neutral';
+    }
+    function dirLabel(dir, certType) {
+        const m = {
+            'trend': '順勢',
+            'counter_add': '⚠️逆勢加碼',
+            'counter_exit': '逆勢減碼',
+            'neutral': '中性',
+        };
+        return m[dir] || '中性';
+    }
     function computeDivergenceRates(data) {
         const rates = [];
         for (let i = 0; i < data.length; i++) {
             if (i === 0 || !data[i-1] || !data[i]) {
-                rates.push({ bull: null, bear: null, hsi_change: null, bull_chg: null, bear_chg: null, flat: false });
+                rates.push({ bull: null, bear: null, hsi_change: null, bull_chg: null, bear_chg: null, flat: false, bull_dir: 'neutral', bear_dir: 'neutral' });
                 continue;
             }
             const today = data[i];
             const yest = data[i-1];
             const dHsi = (today.hsi || 0) - (yest.hsi || 0);
-            const dBull = (today.bull_1000_amount || 0) - (yest.bull_1000_amount || 0);
-            const dBear = (today.bear_1000_amount || 0) - (yest.bear_1000_amount || 0);
+            const bull_today = today.bull_1000_amount || 0;
+            const bear_today = today.bear_1000_amount || 0;
+            const bull_yest = yest.bull_1000_amount || 0;
+            const bear_yest = yest.bear_1000_amount || 0;
+            const dBull = bull_today - bull_yest;
+            const dBear = bear_today - bear_yest;
             const flat = Math.abs(dHsi) < HSI_FLAT_THRESHOLD;
-            if (dHsi === 0 || flat) {
-                // 平盤日: 數值 = 0 (副圖畫到基準線), 標記 flat:true (tooltip 顯示「平盤」)
-                rates.push({ bull: 0, bear: 0, hsi_change: dHsi, bull_chg: dBull, bear_chg: dBear, flat });
-            } else {
+            if (dHsi === 0 || flat || bull_yest === 0 || bear_yest === 0) {
+                // 平盤日: 數值 = 0 (副圖畫到基準線), 標記 flat
                 rates.push({
-                    bull: dBull / dHsi,
-                    bear: dBear / dHsi,
+                    bull: 0, bear: 0,
+                    hsi_change: dHsi, bull_chg: dBull, bear_chg: dBear,
+                    flat, bull_dir: 'neutral', bear_dir: 'neutral',
+                });
+            } else {
+                // 公式: 相對變化率 = Δ / 昨日街貨 * 100%
+                const bullPct = (dBull / bull_yest) * 100;
+                const bearPct = (dBear / bear_yest) * 100;
+                rates.push({
+                    bull: bullPct,
+                    bear: bearPct,
                     hsi_change: dHsi,
                     bull_chg: dBull,
                     bear_chg: dBear,
+                    flat: false,
+                    bull_dir: classifyDirection(dHsi, dBull, 'bull'),
+                    bear_dir: classifyDirection(dHsi, dBear, 'bear'),
                 });
             }
         }
         return rates;
     }
 
-    // 偵測「連續 N 天擴大」(同方向值越來越負 = 警)
-    function detectExpandingStreak(rates, key, minStreak = 3) {
+    // 偵測「連續 N 天逆勢加碼」(方向性)
+    // counter_add: 散戶在 HSI 反方向加碼 (警)
+    function detectCounterAddStreak(rates, key) {
+        // key: 'bull_dir' 或 'bear_dir'
         let streak = 0;
-        let direction = null;
-        for (let i = rates.length - 1; i > 0; i--) {
-            const today = rates[i][key];
-            const yest = rates[i-1][key];
-            if (today == null || yest == null) break;
-            // 平盤日 (flat) 跳過, 不參與 streak 計算
-            if (rates[i].flat || rates[i-1].flat) break;
-            // 第一天判斷方向 (負/正)
-            if (direction === null) {
-                direction = today < 0 ? 'negative' : (today > 0 ? 'positive' : null);
-            }
-            // 同方向 + 數值擴大 (絕對值變大)
-            if (direction === 'negative' && today < yest) {
-                streak++;
-            } else if (direction === 'positive' && today > yest) {
+        for (let i = rates.length - 1; i >= 0; i--) {
+            const rate = rates[i];
+            if (!rate) break;
+            if (rate.flat) break;  // 平盤日 break
+            if (rate[key] === 'counter_add') {
                 streak++;
             } else {
                 break;
             }
         }
-        return { streak, direction };
+        return streak;
     }
 
-    // 顏色深度: 根據絕對值
-    function divColor(value) {
+    // 顏色: 根據方向 (順勢綠, 逆勢加碼紅, 逆勢減碼黃, 平盤灰)
+    function dirColor(dir, value) {
         if (value == null) return 'rgba(160, 174, 192, 0.3)';
         const abs = Math.abs(value);
-        if (abs < 5) return value < 0 ? 'rgba(252, 129, 129, 0.4)' : 'rgba(72, 187, 120, 0.4)';
-        if (abs < 15) return value < 0 ? 'rgba(252, 129, 129, 0.7)' : 'rgba(72, 187, 120, 0.7)';
-        return value < 0 ? 'rgba(252, 129, 129, 1.0)' : 'rgba(72, 187, 120, 1.0)';
+        // 透明度按絕對值: < 5% 淡, 5-15% 中, > 15% 深
+        const alpha = abs < 5 ? 0.4 : abs < 15 ? 0.7 : 1.0;
+        switch (dir) {
+            case 'trend':        return `rgba(72, 187, 120, ${alpha})`;   // 綠 (健康)
+            case 'counter_add':  return `rgba(252, 129, 129, ${alpha})`; // 紅 (警)
+            case 'counter_exit': return `rgba(237, 187, 49, ${alpha})`;  // 黃 (中性)
+            default:             return 'rgba(160, 174, 192, 0.6)';      // 灰
+        }
+    }
+    function dirBorderColor(dir) {
+        switch (dir) {
+            case 'trend':        return '#48bb78';
+            case 'counter_add':  return '#fc8181';
+            case 'counter_exit': return '#edbb31';
+            default:             return '#a0aec0';
+        }
     }
 
     // 初始化背馳率副圖
@@ -482,44 +536,44 @@
                 labels: [],
                 datasets: [
                     {
-                        label: '牛證背馳率',
+                        label: '牛證街貨變化率 (%)',
                         data: [],
-                        borderColor: '#fc8181',
-                        backgroundColor: 'rgba(252, 129, 129, 0.2)',
+                        borderColor: 'rgba(252, 129, 129, 0.5)',
+                        backgroundColor: 'rgba(252, 129, 129, 0.1)',
                         borderWidth: 2,
-                        pointRadius: 3,
+                        pointRadius: 4,
                         pointBackgroundColor: ctx => {
                             const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
                             const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
                             if (rate && rate.flat) return 'rgba(160, 174, 192, 0.6)';
-                            return divColor(ctx.raw);
+                            return dirColor(rate ? rate.bull_dir : 'neutral', ctx.raw);
                         },
                         pointBorderColor: ctx => {
                             const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
                             const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
-                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.9)';
-                            return ctx.raw < 0 ? '#fc8181' : '#48bb78';
+                            if (rate && rate.flat) return '#a0aec0';
+                            return dirBorderColor(rate ? rate.bull_dir : 'neutral');
                         },
                         tension: 0.1,
                     },
                     {
-                        label: '熊證背馳率',
+                        label: '熊證街貨變化率 (%)',
                         data: [],
-                        borderColor: '#48bb78',
-                        backgroundColor: 'rgba(72, 187, 120, 0.2)',
+                        borderColor: 'rgba(72, 187, 120, 0.5)',
+                        backgroundColor: 'rgba(72, 187, 120, 0.1)',
                         borderWidth: 2,
-                        pointRadius: 3,
+                        pointRadius: 4,
                         pointBackgroundColor: ctx => {
                             const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
                             const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
                             if (rate && rate.flat) return 'rgba(160, 174, 192, 0.6)';
-                            return divColor(ctx.raw);
+                            return dirColor(rate ? rate.bear_dir : 'neutral', ctx.raw);
                         },
                         pointBorderColor: ctx => {
                             const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
                             const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
-                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.9)';
-                            return ctx.raw < 0 ? '#fc8181' : '#48bb78';
+                            if (rate && rate.flat) return '#a0aec0';
+                            return dirBorderColor(rate ? rate.bear_dir : 'neutral');
                         },
                         tension: 0.1,
                     },
@@ -544,11 +598,14 @@
                                 const idx = context.dataIndex;
                                 const rate = window.divergenceRates && window.divergenceRates[window._lastGlobalIndices[idx]];
                                 if (!rate) return '';
-                                if (rate.flat) return '⚠️ 平盤日 (|ΔHSI| < 30, 背馳率顯示為 0)';
+                                if (rate.flat) return '⚠️ 平盤日 (|ΔHSI| < 30)';
                                 const parts = [];
-                                if (rate.hsi_change != null) parts.push(`HSI 日變: ${rate.hsi_change > 0 ? '+' : ''}${rate.hsi_change.toFixed(0)}`);
-                                if (rate.bull_chg != null) parts.push(`牛 1000 內日變: ${rate.bull_chg > 0 ? '+' : ''}${rate.bull_chg.toFixed(0)}`);
-                                if (rate.bear_chg != null) parts.push(`熊 1000 內日變: ${rate.bear_chg > 0 ? '+' : ''}${rate.bear_chg.toFixed(0)}`);
+                                const isBull = context.dataset.label.includes('牛');
+                                const dir = isBull ? rate.bull_dir : rate.bear_dir;
+                                parts.push(`方向: ${dirLabel(dir, isBull ? 'bull' : 'bear')}`);
+                                if (rate.hsi_change != null) parts.push(`HSI 日變: ${rate.hsi_change > 0 ? '+' : ''}${rate.hsi_change.toFixed(0)} 點`);
+                                const chg = isBull ? rate.bull_chg : rate.bear_chg;
+                                if (chg != null) parts.push(`${isBull ? '牛' : '熊'} 1000 內日變: ${chg > 0 ? '+' : ''}${chg.toFixed(0)} 張`);
                                 return parts.join('\n');
                             }
                         }
@@ -557,12 +614,13 @@
                 scales: {
                     x: { ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
                     y: {
-                        ticks: { color: '#a0aec0', font: { size: 10 } },
+                        suggestedMin: -50, suggestedMax: 50,
+                        ticks: { color: '#a0aec0', font: { size: 10 }, callback: v => v + '%' },
                         grid: {
                             color: ctx => ctx.tick.value === 0 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)',
                             lineWidth: ctx => ctx.tick.value === 0 ? 1.5 : 1,
                         },
-                        title: { display: true, text: '背馳率 (平盤 = 0 灰色)', color: '#a0aec0', font: { size: 10 } }
+                        title: { display: true, text: '街貨變化率 (%, 順勢綠/逆勢加碼紅/逆勢減碼黃)', color: '#a0aec0', font: { size: 10 } }
                     },
                 },
             },
@@ -593,34 +651,37 @@
         const expandingBadge = document.getElementById('expandingBadge');
 
         if (lastRate && lastItem) {
-            // 牛證背馳
+            // 牛證 RBI
             if (lastRate.flat) {
-                bullBadge.innerHTML = `🐂 牛證背馳: <strong>平盤</strong>`;
+                bullBadge.innerHTML = `🐂 牛證: <strong>平盤</strong>`;
                 bullBadge.style.background = '#718096';
                 bullBadge.style.color = 'white';
             } else if (lastRate.bull != null) {
                 const v = lastRate.bull;
                 const sign = v > 0 ? '+' : '';
-                bullBadge.innerHTML = `🐂 牛證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
-                bullBadge.style.background = divColor(v);
-                if (v < 0) bullBadge.style.color = 'white';
-                else if (v > 0) bullBadge.style.color = 'white';
+                const dir = lastRate.bull_dir;
+                const arrow = dir === 'counter_add' ? '⚠️' : dir === 'trend' ? '✓' : '↔';
+                bullBadge.innerHTML = `${arrow} 牛證: <strong>${sign}${v.toFixed(1)}%</strong> ${dirLabel(dir, 'bull')}`;
+                bullBadge.style.background = dirColor(dir, v);
+                bullBadge.style.color = v !== 0 ? 'white' : '#1a202c';
             } else {
-                bullBadge.innerHTML = `🐂 牛證背馳: <strong>--</strong>`;
+                bullBadge.innerHTML = `🐂 牛證: <strong>--</strong>`;
             }
-            // 熊證背馳
+            // 熊證 RBI
             if (lastRate.flat) {
-                bearBadge.innerHTML = `🐻 熊證背馳: <strong>平盤</strong>`;
+                bearBadge.innerHTML = `🐻 熊證: <strong>平盤</strong>`;
                 bearBadge.style.background = '#718096';
                 bearBadge.style.color = 'white';
             } else if (lastRate.bear != null) {
                 const v = lastRate.bear;
                 const sign = v > 0 ? '+' : '';
-                bearBadge.innerHTML = `🐻 熊證背馳: <strong>${sign}${v.toFixed(2)}</strong>`;
-                bearBadge.style.background = divColor(v);
-                bearBadge.style.color = 'white';
+                const dir = lastRate.bear_dir;
+                const arrow = dir === 'counter_add' ? '⚠️' : dir === 'trend' ? '✓' : '↔';
+                bearBadge.innerHTML = `${arrow} 熊證: <strong>${sign}${v.toFixed(1)}%</strong> ${dirLabel(dir, 'bear')}`;
+                bearBadge.style.background = dirColor(dir, v);
+                bearBadge.style.color = v !== 0 ? 'white' : '#1a202c';
             } else {
-                bearBadge.innerHTML = `🐻 熊證背馳: <strong>--</strong>`;
+                bearBadge.innerHTML = `🐻 熊證: <strong>--</strong>`;
             }
             // HSI 日變
             if (lastRate.hsi_change != null && lastRate.hsi_change !== 0) {
@@ -632,13 +693,14 @@
             } else {
                 hsiBadge.innerHTML = `📉 HSI 日變: <strong>--</strong>`;
             }
-            // 連續 3 天擴大警示
-            const bullStreak = detectExpandingStreak(window.divergenceRates, 'bull', 3);
-            const bearStreak = detectExpandingStreak(window.divergenceRates, 'bear', 3);
-            if (bullStreak.streak >= 3 || bearStreak.streak >= 3) {
-                const which = bullStreak.streak >= 3 ? '牛' : '熊';
-                const dir = (bullStreak.streak >= 3 ? bullStreak : bearStreak).direction;
-                expandingBadge.innerHTML = `⚡ ${which}證連續 ${Math.max(bullStreak.streak, bearStreak.streak)} 日${dir === 'negative' ? '負向' : '正向'}擴大 (警)`;
+            // 連續 3 天逆勢加碼警示
+            const bullCounter = detectCounterAddStreak(window.divergenceRates, 'bull_dir');
+            const bearCounter = detectCounterAddStreak(window.divergenceRates, 'bear_dir');
+            if (bullCounter >= 3 || bearCounter >= 3) {
+                const which = bullCounter >= 3 ? '牛' : '熊';
+                const days = Math.max(bullCounter, bearCounter);
+                const dir = bullCounter >= 3 ? lastRate.bull_dir : lastRate.bear_dir;
+                expandingBadge.innerHTML = `⚡ ${which}證連續 ${days} 日${dirLabel(dir, which === '牛' ? 'bull' : 'bear')} (警)`;
                 expandingBadge.style.display = 'inline-block';
             } else {
                 expandingBadge.style.display = 'none';
