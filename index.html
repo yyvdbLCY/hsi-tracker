@@ -420,7 +420,8 @@
             const dBear = (today.bear_1000_amount || 0) - (yest.bear_1000_amount || 0);
             const flat = Math.abs(dHsi) < HSI_FLAT_THRESHOLD;
             if (dHsi === 0 || flat) {
-                rates.push({ bull: null, bear: null, hsi_change: dHsi, bull_chg: dBull, bear_chg: dBear, flat });
+                // 平盤日: 數值 = 0 (副圖畫到基準線), 標記 flat:true (tooltip 顯示「平盤」)
+                rates.push({ bull: 0, bear: 0, hsi_change: dHsi, bull_chg: dBull, bear_chg: dBear, flat });
             } else {
                 rates.push({
                     bull: dBull / dHsi,
@@ -442,6 +443,8 @@
             const today = rates[i][key];
             const yest = rates[i-1][key];
             if (today == null || yest == null) break;
+            // 平盤日 (flat) 跳過, 不參與 streak 計算
+            if (rates[i].flat || rates[i-1].flat) break;
             // 第一天判斷方向 (負/正)
             if (direction === null) {
                 direction = today < 0 ? 'negative' : (today > 0 ? 'positive' : null);
@@ -486,8 +489,16 @@
                         borderWidth: 2,
                         pointRadius: 3,
                         pointBackgroundColor: ctx => {
-                            const v = ctx.raw;
-                            return divColor(v);
+                            const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
+                            const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
+                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.6)';
+                            return divColor(ctx.raw);
+                        },
+                        pointBorderColor: ctx => {
+                            const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
+                            const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
+                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.9)';
+                            return ctx.raw < 0 ? '#fc8181' : '#48bb78';
                         },
                         tension: 0.1,
                     },
@@ -499,8 +510,16 @@
                         borderWidth: 2,
                         pointRadius: 3,
                         pointBackgroundColor: ctx => {
-                            const v = ctx.raw;
-                            return divColor(v);
+                            const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
+                            const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
+                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.6)';
+                            return divColor(ctx.raw);
+                        },
+                        pointBorderColor: ctx => {
+                            const globalIdx = window._lastGlobalIndices ? window._lastGlobalIndices[ctx.dataIndex] : null;
+                            const rate = globalIdx != null ? window.divergenceRates[globalIdx] : null;
+                            if (rate && rate.flat) return 'rgba(160, 174, 192, 0.9)';
+                            return ctx.raw < 0 ? '#fc8181' : '#48bb78';
                         },
                         tension: 0.1,
                     },
@@ -525,7 +544,7 @@
                                 const idx = context.dataIndex;
                                 const rate = window.divergenceRates && window.divergenceRates[window._lastGlobalIndices[idx]];
                                 if (!rate) return '';
-                                if (rate.flat) return '⚠️ HSI 變化 < 50 點, 背馳率無意義 (平盤)';
+                                if (rate.flat) return '⚠️ 平盤日 (|ΔHSI| < 30, 背馳率顯示為 0)';
                                 const parts = [];
                                 if (rate.hsi_change != null) parts.push(`HSI 日變: ${rate.hsi_change > 0 ? '+' : ''}${rate.hsi_change.toFixed(0)}`);
                                 if (rate.bull_chg != null) parts.push(`牛 1000 內日變: ${rate.bull_chg > 0 ? '+' : ''}${rate.bull_chg.toFixed(0)}`);
@@ -537,7 +556,14 @@
                 },
                 scales: {
                     x: { ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { ticks: { color: '#a0aec0', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: '背馳率', color: '#a0aec0', font: { size: 10 } } },
+                    y: {
+                        ticks: { color: '#a0aec0', font: { size: 10 } },
+                        grid: {
+                            color: ctx => ctx.tick.value === 0 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)',
+                            lineWidth: ctx => ctx.tick.value === 0 ? 1.5 : 1,
+                        },
+                        title: { display: true, text: '背馳率 (平盤 = 0 灰色)', color: '#a0aec0', font: { size: 10 } }
+                    },
                 },
             },
         });
@@ -553,8 +579,9 @@
             return item ? formatToShortDate(item.date) : '';
         });
         window.divergenceChartInstance.data.labels = slicedLabels;
-        window.divergenceChartInstance.data.datasets[0].data = slicedRates.map(r => r ? r.bull : null);
-        window.divergenceChartInstance.data.datasets[1].data = slicedRates.map(r => r ? r.bear : null);
+        // flat 日用 0 顯示 (畫到基準線, 不留空隙)
+        window.divergenceChartInstance.data.datasets[0].data = slicedRates.map(r => (r && r.bull !== undefined) ? r.bull : null);
+        window.divergenceChartInstance.data.datasets[1].data = slicedRates.map(r => (r && r.bear !== undefined) ? r.bear : null);
         window.divergenceChartInstance.update();
 
         // 徽章: 用最後一天
