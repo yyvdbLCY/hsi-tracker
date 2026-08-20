@@ -871,12 +871,28 @@
             // 計算背馳率 + 初始化副圖
             window.divergenceRates = computeDivergenceRates(window.marketData);
             if (!window.divergenceChartInstance) initDivergenceChart();
+            // 主動渲染副圖一次 (避免用戶拉 slider 才看到資料)
+            if (window.divergenceChartInstance && window.marketData.length > 0) {
+                const totalLen = window.marketData.length;
+                const showCount = Math.min(window.displayDays || 30, totalLen);
+                const globalIndices = [];
+                for (let i = totalLen - showCount; i < totalLen; i++) globalIndices.push(i);
+                updateDivergenceDisplay(globalIndices);
+            }
             // 順便載入期權 OI 資料
             loadOptionsData();
         });
         document.getElementById('refreshBtn').addEventListener('click', () => {
             loadCloudData().then(() => {
                 window.divergenceRates = computeDivergenceRates(window.marketData);
+                // 主動渲染副圖
+                if (window.divergenceChartInstance && window.marketData.length > 0) {
+                    const totalLen = window.marketData.length;
+                    const showCount = Math.min(window.displayDays || 30, totalLen);
+                    const globalIndices = [];
+                    for (let i = totalLen - showCount; i < totalLen; i++) globalIndices.push(i);
+                    updateDivergenceDisplay(globalIndices);
+                }
             });
             loadOptionsData();
         });
