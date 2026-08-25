@@ -19,7 +19,7 @@ CORRECTION_FACTOR = 1.0                 # 港交所数据已为全市场官方�
 if not firebase_admin._apps:
     cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
-db = firestore.client(database="(default)")
+db = firestore.client(database_id="(default)")
 doc_ref = db.collection("market").document("hsi_data")
 
 def upload_to_firestore(data):
