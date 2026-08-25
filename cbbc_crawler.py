@@ -19,7 +19,7 @@ CORRECTION_FACTOR = 1.0                 # 港交所数据已为全市场官方�
 if not firebase_admin._apps:
     cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
-db = firestore.client(database_id="(default)")
+db = firestore.client()
 doc_ref = db.collection("market").document("hsi_data")
 
 def upload_to_firestore(data):
@@ -56,7 +56,9 @@ def upload_to_firestore(data):
         doc_ref.set({"list": data_list})
         print(f"✅ Firestore 已更新，共 {len(data_list)} 笔记录")
     except Exception as e:
+        import traceback
         print(f"❌ Firestore 上传失败: {e}")
+        print(f"   詳細: {traceback.format_exc()[-500:]}")
 
 # ---------- 以下为你原有代码（完整保留） ----------
 def get_hsi_last_from_sg():
