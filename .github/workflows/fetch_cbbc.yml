@@ -26,7 +26,7 @@ jobs:
 
       - name: 安装依赖 (CBBC + Options OI + Sheets)
         run: |
-          pip install requests firebase-admin pandas yfinance
+          pip install requests firebase-admin==7.5.0 pandas yfinance
           pip install playwright gspread google-auth
           playwright install chromium
 
