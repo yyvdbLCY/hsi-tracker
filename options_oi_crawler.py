@@ -727,7 +727,7 @@ def upload_to_firestore(data):
     if not firebase_admin._apps:
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    db = firestore.client(database="(default)")
     doc_ref = db.collection("market").document("hsi_options_oi")
 
     try:
