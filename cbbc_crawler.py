@@ -238,7 +238,7 @@ def fallback_sg_full(target_date=None):
     for item in raw.get("mainData", []):
         ty = item.get("ty")
         try:
-            volume = int(round(float(item.get("o1", 0))))
+            volume = int(round(float(item.get("d1", 0))))
         except (ValueError, TypeError):
             continue
         if volume == 0: continue
@@ -254,21 +254,26 @@ def fallback_sg_full(target_date=None):
             "volume": volume
         })
 
-    # 500/1000点内重货牛证 + 熊证
+    # 500/1000点内重货牛证 + 熊证 (按 range 重疊比例, 對應 hk.warrants.com 頁面左邊 100 點 range 街貨算法)
+    # 之前用 range 中位判斷, 邊界會漏算; 改成 low/high 重疊比例
+    def overlap_volume(d, range_low, range_high, cert_type):
+        if cert_type == 'bull' and d['type'] != 'bull': return 0
+        if cert_type == 'bear' and d['type'] != 'bear': return 0
+        low, high = d['low'], d['high']
+        o_low = max(low, range_low)
+        o_high = min(high, range_high)
+        if o_low >= o_high: return 0
+        return d['volume'] * (o_high - o_low) / (high - low)
     bull_500_sum = 0
     bear_500_sum = 0
     bull_1000_sum = 0
     bear_1000_sum = 0
     if hsi_last > 0:
         for d in distribution:
-            if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
-                bull_500_sum += d["volume"]
-            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 500:
-                bear_500_sum += d["volume"]
-            if d["type"] == "bull" and d["strike"] >= hsi_last - 1000 and d["strike"] <= hsi_last:
-                bull_1000_sum += d["volume"]
-            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 1000:
-                bear_1000_sum += d["volume"]
+            bull_500_sum += overlap_volume(d, hsi_last - 500, hsi_last, 'bull')
+            bear_500_sum += overlap_volume(d, hsi_last, hsi_last + 500, 'bear')
+            bull_1000_sum += overlap_volume(d, hsi_last - 1000, hsi_last, 'bull')
+            bear_1000_sum += overlap_volume(d, hsi_last, hsi_last + 1000, 'bear')
     # 與 hkex 數據源保持一致 (CORRECTION_FACTOR = 1.0)
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
@@ -341,7 +346,7 @@ def fallback_bnp_paribas(target_date=None):
     distribution = []
     for item in raw.get("mainData", []):
         try:
-            volume = int(round(float(item.get("o1", 0))))
+            volume = int(round(float(item.get("d1", 0))))
         except (ValueError, TypeError):
             continue
         if volume == 0:
@@ -359,21 +364,25 @@ def fallback_bnp_paribas(target_date=None):
             "volume": volume,
         })
 
-    # 500/1000 點內牛證 + 熊證
+    # 500/1000 點內牛證 + 熊證 (按 range 重疊比例)
+    def overlap_volume(d, range_low, range_high, cert_type):
+        if cert_type == 'bull' and d['type'] != 'bull': return 0
+        if cert_type == 'bear' and d['type'] != 'bear': return 0
+        low, high = d['low'], d['high']
+        o_low = max(low, range_low)
+        o_high = min(high, range_high)
+        if o_low >= o_high: return 0
+        return d['volume'] * (o_high - o_low) / (high - low)
     bull_500_sum = 0
     bear_500_sum = 0
     bull_1000_sum = 0
     bear_1000_sum = 0
     if hsi_last > 0:
         for d in distribution:
-            if d["type"] == "bull" and d["strike"] >= hsi_last - 500 and d["strike"] <= hsi_last:
-                bull_500_sum += d["volume"]
-            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 500:
-                bear_500_sum += d["volume"]
-            if d["type"] == "bull" and d["strike"] >= hsi_last - 1000 and d["strike"] <= hsi_last:
-                bull_1000_sum += d["volume"]
-            if d["type"] == "bear" and d["strike"] >= hsi_last and d["strike"] <= hsi_last + 1000:
-                bear_1000_sum += d["volume"]
+            bull_500_sum += overlap_volume(d, hsi_last - 500, hsi_last, 'bull')
+            bear_500_sum += overlap_volume(d, hsi_last, hsi_last + 500, 'bear')
+            bull_1000_sum += overlap_volume(d, hsi_last - 1000, hsi_last, 'bull')
+            bear_1000_sum += overlap_volume(d, hsi_last, hsi_last + 1000, 'bear')
     bull_500_corrected = int(round(bull_500_sum * 1.0))
     bear_500_corrected = int(round(bear_500_sum * 1.0))
     bull_1000_corrected = int(round(bull_1000_sum * 1.0))
