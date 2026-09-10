@@ -751,12 +751,36 @@ def upload_to_firestore(data):
         if len(data_list) < before:
             print(f"   🧹 清掉 {before - len(data_list)} 筆全 0 舊記錄")
 
-        # 只保留最近 90 天
-        if len(data_list) > 90:
-            data_list = data_list[-90:]
+        # 只保留最近 30 天 (Firestore 單文檔 1MB 限制, 90 天超 1MB)
+        if len(data_list) > 30:
+            data_list = data_list[-30:]
 
-        doc_ref.set({"list": data_list})
-        print(f"✅ Firestore 已更新,共 {len(data_list)} 筆歷史記錄")
+        # 壓縮: 移除冗餘欄位 (y_call_oi/y_put_oi/distance_pct 可從 call_oi/put_oi/strike 推算)
+        # 90 天 strike 15 欄 → 1MB+, 移除 3 欄後 12 欄 → ~800KB
+        compressed_list = []
+        for item in data_list:
+            slim_strikes = []
+            for s in item.get("strikes", []):
+                slim_strikes.append({
+                    "strike": s.get("strike"),
+                    "type": s.get("type"),
+                    "call_oi": s.get("call_oi"),
+                    "put_oi": s.get("put_oi"),
+                    "call_oi_change": s.get("call_oi_change"),
+                    "put_oi_change": s.get("put_oi_change"),
+                    "call_pct": s.get("call_pct"),
+                    "put_pct": s.get("put_pct"),
+                    "relative_position": s.get("relative_position"),
+                    "is_near_money": s.get("is_near_money"),
+                    "call_flags": s.get("call_flags", []),
+                    "put_flags": s.get("put_flags", []),
+                })
+            slim = {k: v for k, v in item.items() if k != "strikes"}
+            slim["strikes"] = slim_strikes
+            compressed_list.append(slim)
+
+        doc_ref.set({"list": compressed_list})
+        print(f"✅ Firestore 已更新,共 {len(compressed_list)} 筆歷史記錄 (壓縮後)")
     except Exception as e:
         print(f"❌ Firestore 上傳失敗: {e}")
         raise
