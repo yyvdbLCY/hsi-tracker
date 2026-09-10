@@ -228,10 +228,22 @@ def fallback_sg_full(target_date=None):
 
     fd = raw.get("furtherData", {})
     hsi_last = float(fd.get("hsilast", 0))
-    # 使用請求的日期當作 data_date (保證日期標記正確)
-    data_date = target_date.isoformat()
     sum_bull = int(fd.get("sumBull", 0))
     sum_bear = int(fd.get("sumBear", 0))
+
+    # 從 udates 找實際資料日期 (API 開市時仍返回上一個收市, 不應該用 target_date 寫死)
+    udates = fd.get("udates", [])
+    if udates:
+        # 找最接近且 <= target_date 的日期, 避免 9/10 開市時把 9/9 數據寫到 9/10 archive
+        data_date = udates[0]  # 最新可得的交易日
+        for d in sorted(udates):
+            if d <= target_date.isoformat():
+                data_date = d
+            else:
+                break
+    else:
+        data_date = target_date.isoformat()
+    print(f"   實際資料日期: {data_date} (target={target_date.isoformat()}, API udates={udates[:3]})")
 
     # 计算分布（保留你原有邏輯，用於存檔）
     distribution = []
