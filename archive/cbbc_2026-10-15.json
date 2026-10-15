@@ -1,0 +1,296 @@
+{
+  "date": "2026-10-15",
+  "hsi": 24062.72,
+  "summary": {
+    "total_bull": 7236,
+    "total_bear": 7915,
+    "bull_pct": 47.8,
+    "bull_500": 3022,
+    "bear_500": 686,
+    "bull_1000": 4712,
+    "bear_1000": 3133
+  },
+  "distribution": [
+    {
+      "type": "bull",
+      "strike": 22049.5,
+      "low": 22000,
+      "high": 22099,
+      "volume": 107
+    },
+    {
+      "type": "bull",
+      "strike": 22149.5,
+      "low": 22100,
+      "high": 22199,
+      "volume": 116
+    },
+    {
+      "type": "bull",
+      "strike": 22249.5,
+      "low": 22200,
+      "high": 22299,
+      "volume": 54
+    },
+    {
+      "type": "bull",
+      "strike": 22349.5,
+      "low": 22300,
+      "high": 22399,
+      "volume": 182
+    },
+    {
+      "type": "bull",
+      "strike": 22449.5,
+      "low": 22400,
+      "high": 22499,
+      "volume": 333
+    },
+    {
+      "type": "bull",
+      "strike": 22549.5,
+      "low": 22500,
+      "high": 22599,
+      "volume": 285
+    },
+    {
+      "type": "bull",
+      "strike": 22649.5,
+      "low": 22600,
+      "high": 22699,
+      "volume": 187
+    },
+    {
+      "type": "bull",
+      "strike": 22749.5,
+      "low": 22700,
+      "high": 22799,
+      "volume": 83
+    },
+    {
+      "type": "bull",
+      "strike": 22849.5,
+      "low": 22800,
+      "high": 22899,
+      "volume": 63
+    },
+    {
+      "type": "bull",
+      "strike": 22949.5,
+      "low": 22900,
+      "high": 22999,
+      "volume": 181
+    },
+    {
+      "type": "bull",
+      "strike": 23049.5,
+      "low": 23000,
+      "high": 23099,
+      "volume": 190
+    },
+    {
+      "type": "bull",
+      "strike": 23149.5,
+      "low": 23100,
+      "high": 23199,
+      "volume": 261
+    },
+    {
+      "type": "bull",
+      "strike": 23249.5,
+      "low": 23200,
+      "high": 23299,
+      "volume": 124
+    },
+    {
+      "type": "bull",
+      "strike": 23349.5,
+      "low": 23300,
+      "high": 23399,
+      "volume": 243
+    },
+    {
+      "type": "bull",
+      "strike": 23449.5,
+      "low": 23400,
+      "high": 23499,
+      "volume": 474
+    },
+    {
+      "type": "bull",
+      "strike": 23549.5,
+      "low": 23500,
+      "high": 23599,
+      "volume": 817
+    },
+    {
+      "type": "bull",
+      "strike": 23649.5,
+      "low": 23600,
+      "high": 23699,
+      "volume": 1129
+    },
+    {
+      "type": "bull",
+      "strike": 23749.5,
+      "low": 23700,
+      "high": 23799,
+      "volume": 794
+    },
+    {
+      "type": "bull",
+      "strike": 23849.5,
+      "low": 23800,
+      "high": 23899,
+      "volume": 558
+    },
+    {
+      "type": "bull",
+      "strike": 23949.5,
+      "low": 23900,
+      "high": 23999,
+      "volume": 242
+    },
+    {
+      "type": "bear",
+      "strike": 24249.5,
+      "low": 24200,
+      "high": 24299,
+      "volume": 141
+    },
+    {
+      "type": "bear",
+      "strike": 24349.5,
+      "low": 24300,
+      "high": 24399,
+      "volume": 146
+    },
+    {
+      "type": "bear",
+      "strike": 24449.5,
+      "low": 24400,
+      "high": 24499,
+      "volume": 150
+    },
+    {
+      "type": "bear",
+      "strike": 24549.5,
+      "low": 24500,
+      "high": 24599,
+      "volume": 393
+    },
+    {
+      "type": "bear",
+      "strike": 24649.5,
+      "low": 24600,
+      "high": 24699,
+      "volume": 864
+    },
+    {
+      "type": "bear",
+      "strike": 24749.5,
+      "low": 24700,
+      "high": 24799,
+      "volume": 432
+    },
+    {
+      "type": "bear",
+      "strike": 24849.5,
+      "low": 24800,
+      "high": 24899,
+      "volume": 405
+    },
+    {
+      "type": "bear",
+      "strike": 24949.5,
+      "low": 24900,
+      "high": 24999,
+      "volume": 428
+    },
+    {
+      "type": "bear",
+      "strike": 25049.5,
+      "low": 25000,
+      "high": 25099,
+      "volume": 275
+    },
+    {
+      "type": "bear",
+      "strike": 25149.5,
+      "low": 25100,
+      "high": 25199,
+      "volume": 127
+    },
+    {
+      "type": "bear",
+      "strike": 25249.5,
+      "low": 25200,
+      "high": 25299,
+      "volume": 120
+    },
+    {
+      "type": "bear",
+      "strike": 25349.5,
+      "low": 25300,
+      "high": 25399,
+      "volume": 94
+    },
+    {
+      "type": "bear",
+      "strike": 25449.5,
+      "low": 25400,
+      "high": 25499,
+      "volume": 435
+    },
+    {
+      "type": "bear",
+      "strike": 25549.5,
+      "low": 25500,
+      "high": 25599,
+      "volume": 163
+    },
+    {
+      "type": "bear",
+      "strike": 25649.5,
+      "low": 25600,
+      "high": 25699,
+      "volume": 29
+    },
+    {
+      "type": "bear",
+      "strike": 25749.5,
+      "low": 25700,
+      "high": 25799,
+      "volume": 21
+    },
+    {
+      "type": "bear",
+      "strike": 25849.5,
+      "low": 25800,
+      "high": 25899,
+      "volume": 119
+    },
+    {
+      "type": "bear",
+      "strike": 25949.5,
+      "low": 25900,
+      "high": 25999,
+      "volume": 36
+    },
+    {
+      "type": "bear",
+      "strike": 26049.5,
+      "low": 26000,
+      "high": 26099,
+      "volume": 46
+    },
+    {
+      "type": "bear",
+      "strike": 26149.5,
+      "low": 26100,
+      "high": 26199,
+      "volume": 73
+    }
+  ],
+  "_source": "法兴"
+}
