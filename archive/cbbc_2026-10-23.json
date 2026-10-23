@@ -1,0 +1,226 @@
+{
+  "date": "2026-10-23",
+  "hsi": 22934.68,
+  "summary": {
+    "total_bull": 8679,
+    "total_bear": 6188,
+    "bull_pct": 58.4,
+    "bull_500": 5135,
+    "bear_500": 0,
+    "bull_1000": 7128,
+    "bear_1000": 0
+  },
+  "distribution": [
+    {
+      "type": "bull",
+      "strike": 21449.5,
+      "low": 21400,
+      "high": 21499,
+      "volume": 24
+    },
+    {
+      "type": "bull",
+      "strike": 21549.5,
+      "low": 21500,
+      "high": 21599,
+      "volume": 113
+    },
+    {
+      "type": "bull",
+      "strike": 21649.5,
+      "low": 21600,
+      "high": 21699,
+      "volume": 36
+    },
+    {
+      "type": "bull",
+      "strike": 21749.5,
+      "low": 21700,
+      "high": 21799,
+      "volume": 56
+    },
+    {
+      "type": "bull",
+      "strike": 21849.5,
+      "low": 21800,
+      "high": 21899,
+      "volume": 142
+    },
+    {
+      "type": "bull",
+      "strike": 21949.5,
+      "low": 21900,
+      "high": 21999,
+      "volume": 191
+    },
+    {
+      "type": "bull",
+      "strike": 22049.5,
+      "low": 22000,
+      "high": 22099,
+      "volume": 427
+    },
+    {
+      "type": "bull",
+      "strike": 22149.5,
+      "low": 22100,
+      "high": 22199,
+      "volume": 199
+    },
+    {
+      "type": "bull",
+      "strike": 22249.5,
+      "low": 22200,
+      "high": 22299,
+      "volume": 273
+    },
+    {
+      "type": "bull",
+      "strike": 22349.5,
+      "low": 22300,
+      "high": 22399,
+      "volume": 649
+    },
+    {
+      "type": "bull",
+      "strike": 22449.5,
+      "low": 22400,
+      "high": 22499,
+      "volume": 917
+    },
+    {
+      "type": "bull",
+      "strike": 22549.5,
+      "low": 22500,
+      "high": 22599,
+      "volume": 1140
+    },
+    {
+      "type": "bull",
+      "strike": 22649.5,
+      "low": 22600,
+      "high": 22699,
+      "volume": 987
+    },
+    {
+      "type": "bull",
+      "strike": 22749.5,
+      "low": 22700,
+      "high": 22799,
+      "volume": 1138
+    },
+    {
+      "type": "bull",
+      "strike": 22849.5,
+      "low": 22800,
+      "high": 22899,
+      "volume": 1274
+    },
+    {
+      "type": "bear",
+      "strike": 24049.5,
+      "low": 24000,
+      "high": 24099,
+      "volume": 241
+    },
+    {
+      "type": "bear",
+      "strike": 24149.5,
+      "low": 24100,
+      "high": 24199,
+      "volume": 5
+    },
+    {
+      "type": "bear",
+      "strike": 24249.5,
+      "low": 24200,
+      "high": 24299,
+      "volume": 128
+    },
+    {
+      "type": "bear",
+      "strike": 24349.5,
+      "low": 24300,
+      "high": 24399,
+      "volume": 141
+    },
+    {
+      "type": "bear",
+      "strike": 24449.5,
+      "low": 24400,
+      "high": 24499,
+      "volume": 98
+    },
+    {
+      "type": "bear",
+      "strike": 24549.5,
+      "low": 24500,
+      "high": 24599,
+      "volume": 218
+    },
+    {
+      "type": "bear",
+      "strike": 24649.5,
+      "low": 24600,
+      "high": 24699,
+      "volume": 281
+    },
+    {
+      "type": "bear",
+      "strike": 24749.5,
+      "low": 24700,
+      "high": 24799,
+      "volume": 103
+    },
+    {
+      "type": "bear",
+      "strike": 24849.5,
+      "low": 24800,
+      "high": 24899,
+      "volume": 98
+    },
+    {
+      "type": "bear",
+      "strike": 24949.5,
+      "low": 24900,
+      "high": 24999,
+      "volume": 227
+    },
+    {
+      "type": "bear",
+      "strike": 25049.5,
+      "low": 25000,
+      "high": 25099,
+      "volume": 124
+    },
+    {
+      "type": "bear",
+      "strike": 25149.5,
+      "low": 25100,
+      "high": 25199,
+      "volume": 35
+    },
+    {
+      "type": "bear",
+      "strike": 25249.5,
+      "low": 25200,
+      "high": 25299,
+      "volume": 71
+    },
+    {
+      "type": "bear",
+      "strike": 25349.5,
+      "low": 25300,
+      "high": 25399,
+      "volume": 66
+    },
+    {
+      "type": "bear",
+      "strike": 25449.5,
+      "low": 25400,
+      "high": 25499,
+      "volume": 395
+    }
+  ],
+  "_source": "BNP Paribas (法巴)"
+}
