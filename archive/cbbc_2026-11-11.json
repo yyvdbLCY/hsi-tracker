@@ -2,13 +2,13 @@
   "date": "2026-11-11",
   "hsi": 24315.92,
   "summary": {
-    "total_bull": 7764,
-    "total_bear": 7073,
-    "bull_pct": 52.3,
-    "bull_500": 1047,
-    "bear_500": 855,
-    "bull_1000": 2010,
-    "bear_1000": 2685
+    "total_bull": 8689,
+    "total_bear": 8181,
+    "bull_pct": 51.5,
+    "bull_500": 1330,
+    "bear_500": 978,
+    "bull_1000": 2464,
+    "bear_1000": 3365
   },
   "distribution": [
     {
@@ -16,140 +16,140 @@
       "strike": 22349.5,
       "low": 22300,
       "high": 22399,
-      "volume": 397
+      "volume": 430
     },
     {
       "type": "bull",
       "strike": 22449.5,
       "low": 22400,
       "high": 22499,
-      "volume": 525
+      "volume": 638
     },
     {
       "type": "bull",
       "strike": 22549.5,
       "low": 22500,
       "high": 22599,
-      "volume": 600
+      "volume": 696
     },
     {
       "type": "bull",
       "strike": 22649.5,
       "low": 22600,
       "high": 22699,
-      "volume": 637
+      "volume": 709
     },
     {
       "type": "bull",
       "strike": 22749.5,
       "low": 22700,
       "high": 22799,
-      "volume": 563
+      "volume": 575
     },
     {
       "type": "bull",
       "strike": 22849.5,
       "low": 22800,
       "high": 22899,
-      "volume": 535
+      "volume": 539
     },
     {
       "type": "bull",
       "strike": 22949.5,
       "low": 22900,
       "high": 22999,
-      "volume": 234
+      "volume": 239
     },
     {
       "type": "bull",
       "strike": 23049.5,
       "low": 23000,
       "high": 23099,
-      "volume": 97
+      "volume": 101
     },
     {
       "type": "bull",
       "strike": 23149.5,
       "low": 23100,
       "high": 23199,
-      "volume": 268
+      "volume": 277
     },
     {
       "type": "bull",
       "strike": 23249.5,
       "low": 23200,
       "high": 23299,
-      "volume": 112
+      "volume": 123
     },
     {
       "type": "bull",
       "strike": 23349.5,
       "low": 23300,
       "high": 23399,
-      "volume": 155
+      "volume": 238
     },
     {
       "type": "bull",
       "strike": 23449.5,
       "low": 23400,
       "high": 23499,
-      "volume": 248
+      "volume": 260
     },
     {
       "type": "bull",
       "strike": 23549.5,
       "low": 23500,
       "high": 23599,
-      "volume": 362
+      "volume": 434
     },
     {
       "type": "bull",
       "strike": 23649.5,
       "low": 23600,
       "high": 23699,
-      "volume": 135
+      "volume": 137
     },
     {
       "type": "bull",
       "strike": 23749.5,
       "low": 23700,
       "high": 23799,
-      "volume": 71
+      "volume": 80
     },
     {
       "type": "bull",
       "strike": 23849.5,
       "low": 23800,
       "high": 23899,
-      "volume": 106
+      "volume": 140
     },
     {
       "type": "bull",
       "strike": 23949.5,
       "low": 23900,
       "high": 23999,
-      "volume": 565
+      "volume": 728
     },
     {
       "type": "bull",
       "strike": 24049.5,
       "low": 24000,
       "high": 24099,
-      "volume": 152
+      "volume": 193
     },
     {
       "type": "bull",
       "strike": 24149.5,
       "low": 24100,
       "high": 24199,
-      "volume": 59
+      "volume": 91
     },
     {
       "type": "bull",
       "strike": 24249.5,
       "low": 24200,
       "high": 24299,
-      "volume": 182
+      "volume": 201
     },
     {
       "type": "bear",
@@ -163,98 +163,98 @@
       "strike": 24549.5,
       "low": 24500,
       "high": 24599,
-      "volume": 81
+      "volume": 98
     },
     {
       "type": "bear",
       "strike": 24649.5,
       "low": 24600,
       "high": 24699,
-      "volume": 333
+      "volume": 400
     },
     {
       "type": "bear",
       "strike": 24749.5,
       "low": 24700,
       "high": 24799,
-      "volume": 297
+      "volume": 326
     },
     {
       "type": "bear",
       "strike": 24849.5,
       "low": 24800,
       "high": 24899,
-      "volume": 374
+      "volume": 433
     },
     {
       "type": "bear",
       "strike": 24949.5,
       "low": 24900,
       "high": 24999,
-      "volume": 597
+      "volume": 844
     },
     {
       "type": "bear",
       "strike": 25049.5,
       "low": 25000,
       "high": 25099,
-      "volume": 422
+      "volume": 542
     },
     {
       "type": "bear",
       "strike": 25149.5,
       "low": 25100,
       "high": 25199,
-      "volume": 282
+      "volume": 367
     },
     {
       "type": "bear",
       "strike": 25249.5,
       "low": 25200,
       "high": 25299,
-      "volume": 191
+      "volume": 225
     },
     {
       "type": "bear",
       "strike": 25349.5,
       "low": 25300,
       "high": 25399,
-      "volume": 151
+      "volume": 289
     },
     {
       "type": "bear",
       "strike": 25449.5,
       "low": 25400,
       "high": 25499,
-      "volume": 163
+      "volume": 190
     },
     {
       "type": "bear",
       "strike": 25549.5,
       "low": 25500,
       "high": 25599,
-      "volume": 162
+      "volume": 305
     },
     {
       "type": "bear",
       "strike": 25649.5,
       "low": 25600,
       "high": 25699,
-      "volume": 63
+      "volume": 77
     },
     {
       "type": "bear",
       "strike": 25749.5,
       "low": 25700,
       "high": 25799,
-      "volume": 38
+      "volume": 58
     },
     {
       "type": "bear",
       "strike": 25849.5,
       "low": 25800,
       "high": 25899,
-      "volume": 216
+      "volume": 225
     },
     {
       "type": "bear",
@@ -268,28 +268,28 @@
       "strike": 26049.5,
       "low": 26000,
       "high": 26099,
-      "volume": 63
+      "volume": 76
     },
     {
       "type": "bear",
       "strike": 26149.5,
       "low": 26100,
       "high": 26199,
-      "volume": 79
+      "volume": 80
     },
     {
       "type": "bear",
       "strike": 26249.5,
       "low": 26200,
       "high": 26299,
-      "volume": 142
+      "volume": 151
     },
     {
       "type": "bear",
       "strike": 26349.5,
       "low": 26300,
       "high": 26399,
-      "volume": 183
+      "volume": 185
     }
   ],
   "_source": "法兴"
