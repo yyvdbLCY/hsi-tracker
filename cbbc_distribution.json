@@ -2,12 +2,12 @@
   "date": "2026-11-20",
   "hsi": 22410.8,
   "summary": {
-    "total_bull": 5126,
-    "total_bear": 5990,
-    "bull_pct": 46.1,
-    "bull_500": 2903,
+    "total_bull": 5806,
+    "total_bear": 6328,
+    "bull_pct": 47.8,
+    "bull_500": 3328,
     "bear_500": 0,
-    "bull_1000": 3970,
+    "bull_1000": 4551,
     "bear_1000": 0
   },
   "distribution": [
@@ -16,133 +16,133 @@
       "strike": 20449.5,
       "low": 20400,
       "high": 20499,
-      "volume": 24
+      "volume": 25
     },
     {
       "type": "bull",
       "strike": 20549.5,
       "low": 20500,
       "high": 20599,
-      "volume": 17
+      "volume": 20
     },
     {
       "type": "bull",
       "strike": 20649.5,
       "low": 20600,
       "high": 20699,
-      "volume": 38
+      "volume": 59
     },
     {
       "type": "bull",
       "strike": 20749.5,
       "low": 20700,
       "high": 20799,
-      "volume": 35
+      "volume": 36
     },
     {
       "type": "bull",
       "strike": 20849.5,
       "low": 20800,
       "high": 20899,
-      "volume": 20
+      "volume": 24
     },
     {
       "type": "bull",
       "strike": 20949.5,
       "low": 20900,
       "high": 20999,
-      "volume": 6
+      "volume": 14
     },
     {
       "type": "bull",
       "strike": 21049.5,
       "low": 21000,
       "high": 21099,
-      "volume": 96
+      "volume": 125
     },
     {
       "type": "bull",
       "strike": 21149.5,
       "low": 21100,
       "high": 21199,
-      "volume": 17
+      "volume": 20
     },
     {
       "type": "bull",
       "strike": 21249.5,
       "low": 21200,
       "high": 21299,
-      "volume": 20
+      "volume": 24
     },
     {
       "type": "bull",
       "strike": 21349.5,
       "low": 21300,
       "high": 21399,
-      "volume": 48
+      "volume": 62
     },
     {
       "type": "bull",
       "strike": 21449.5,
       "low": 21400,
       "high": 21499,
-      "volume": 64
+      "volume": 71
     },
     {
       "type": "bull",
       "strike": 21549.5,
       "low": 21500,
       "high": 21599,
-      "volume": 270
+      "volume": 326
     },
     {
       "type": "bull",
       "strike": 21649.5,
       "low": 21600,
       "high": 21699,
-      "volume": 98
+      "volume": 120
     },
     {
       "type": "bull",
       "strike": 21749.5,
       "low": 21700,
       "high": 21799,
-      "volume": 135
+      "volume": 158
     },
     {
       "type": "bull",
       "strike": 21849.5,
       "low": 21800,
       "high": 21899,
-      "volume": 461
+      "volume": 501
     },
     {
       "type": "bull",
       "strike": 21949.5,
       "low": 21900,
       "high": 21999,
-      "volume": 420
+      "volume": 501
     },
     {
       "type": "bull",
       "strike": 22049.5,
       "low": 22000,
       "high": 22099,
-      "volume": 738
+      "volume": 836
     },
     {
       "type": "bull",
       "strike": 22149.5,
       "low": 22100,
       "high": 22199,
-      "volume": 838
+      "volume": 984
     },
     {
       "type": "bull",
       "strike": 22249.5,
       "low": 22200,
       "high": 22299,
-      "volume": 619
+      "volume": 728
     },
     {
       "type": "bull",
@@ -156,84 +156,84 @@
       "strike": 23549.5,
       "low": 23500,
       "high": 23599,
-      "volume": 206
+      "volume": 247
     },
     {
       "type": "bear",
       "strike": 23649.5,
       "low": 23600,
       "high": 23699,
-      "volume": 478
+      "volume": 554
     },
     {
       "type": "bear",
       "strike": 23749.5,
       "low": 23700,
       "high": 23799,
-      "volume": 17
+      "volume": 28
     },
     {
       "type": "bear",
       "strike": 23849.5,
       "low": 23800,
       "high": 23899,
-      "volume": 46
+      "volume": 59
     },
     {
       "type": "bear",
       "strike": 23949.5,
       "low": 23900,
       "high": 23999,
-      "volume": 15
+      "volume": 22
     },
     {
       "type": "bear",
       "strike": 24049.5,
       "low": 24000,
       "high": 24099,
-      "volume": 245
+      "volume": 304
     },
     {
       "type": "bear",
       "strike": 24149.5,
       "low": 24100,
       "high": 24199,
-      "volume": 13
+      "volume": 17
     },
     {
       "type": "bear",
       "strike": 24249.5,
       "low": 24200,
       "high": 24299,
-      "volume": 9
+      "volume": 10
     },
     {
       "type": "bear",
       "strike": 24349.5,
       "low": 24300,
       "high": 24399,
-      "volume": 72
+      "volume": 75
     },
     {
       "type": "bear",
       "strike": 24449.5,
       "low": 24400,
       "high": 24499,
-      "volume": 253
+      "volume": 257
     },
     {
       "type": "bear",
       "strike": 24549.5,
       "low": 24500,
       "high": 24599,
-      "volume": 85
+      "volume": 91
     },
     {
       "type": "bear",
       "strike": 24649.5,
       "low": 24600,
       "high": 24699,
-      "volume": 104
+      "volume": 107
     },
     {
       "type": "bear",
@@ -247,49 +247,49 @@
       "strike": 24849.5,
       "low": 24800,
       "high": 24899,
-      "volume": 149
+      "volume": 151
     },
     {
       "type": "bear",
       "strike": 24949.5,
       "low": 24900,
       "high": 24999,
-      "volume": 158
+      "volume": 174
     },
     {
       "type": "bear",
       "strike": 25049.5,
       "low": 25000,
       "high": 25099,
-      "volume": 73
+      "volume": 79
     },
     {
       "type": "bear",
       "strike": 25149.5,
       "low": 25100,
       "high": 25199,
-      "volume": 35
+      "volume": 47
     },
     {
       "type": "bear",
       "strike": 25249.5,
       "low": 25200,
       "high": 25299,
-      "volume": 20
+      "volume": 21
     },
     {
       "type": "bear",
       "strike": 25349.5,
       "low": 25300,
       "high": 25399,
-      "volume": 24
+      "volume": 27
     },
     {
       "type": "bear",
       "strike": 25449.5,
       "low": 25400,
       "high": 25499,
-      "volume": 92
+      "volume": 99
     }
   ],
   "_source": "法兴"
